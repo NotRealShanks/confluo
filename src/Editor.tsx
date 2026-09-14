@@ -6,17 +6,36 @@ import type { Awareness } from "y-protocols/awareness";
 import { useRoom } from "@liveblocks/react/suspense";
 import { getYjsProviderForRoom } from "@liveblocks/yjs";
 
-// Generates a random guest label for anonymous users
+type UserAwareness = {
+  name: string;
+  color: string;
+  showName: boolean;
+};
+
 function randomName() {
   return `Guest${Math.floor(Math.random() * 1000)}`;
+}
+
+function randomColor() {
+  return (
+    "#" +
+    Math.floor(Math.random() * 0xffffff)
+      .toString(16)
+      .padStart(6, "0")
+  );
 }
 
 export default function Editor() {
   const room = useRoom();
   const myName = useMemo(randomName, []);
-  const [editorInstance, setEditorInstance] = useState<editor.IStandaloneCodeEditor>();
+  const myColor = useMemo(randomColor, []);
 
-  // Binds Monaco to the shared Yjs document and tags my cursor with a name/color
+  const [editorInstance, setEditorInstance] =
+    useState<editor.IStandaloneCodeEditor>();
+
+  /*
+   * Connect Monaco to the shared Yjs document.
+   */
   useEffect(() => {
     if (!editorInstance) return;
 
@@ -27,8 +46,9 @@ export default function Editor() {
 
     awareness.setLocalStateField("user", {
       name: myName,
-      color: "#" + Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, "0"),
-    });
+      color: myColor,
+      showName: false,
+    } satisfies UserAwareness);
 
     const binding = new MonacoBinding(
       yText,
@@ -37,26 +57,122 @@ export default function Editor() {
       awareness
     );
 
-    return () => binding.destroy();
-  }, [editorInstance, room]);
+    return () => {
+      binding.destroy();
+    };
+  }, [editorInstance, room, myName, myColor]);
 
-  // Injects a colored CSS rule per connected user's clientId
+  /*
+   * Show the local user's name while:
+   * - typing
+   * - selecting text
+   *
+   * Hide it after 2 seconds of inactivity.
+   */
   useEffect(() => {
     if (!editorInstance) return;
 
     const yProvider = getYjsProviderForRoom(room);
     const awareness = yProvider.awareness as unknown as Awareness;
+
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+
+    const showNameTemporarily = () => {
+      awareness.setLocalStateField("user", {
+        name: myName,
+        color: myColor,
+        showName: true,
+      } satisfies UserAwareness);
+
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+
+      timeout = setTimeout(() => {
+        awareness.setLocalStateField("user", {
+          name: myName,
+          color: myColor,
+          showName: false,
+        } satisfies UserAwareness);
+      }, 2000);
+    };
+
+    /*
+     * Typing.
+     */
+    const typingDisposable = editorInstance.onKeyDown((event) => {
+        const key = event.browserEvent.key;
+
+        const isTyping =
+            key.length === 1 ||
+            key === "Backspace" ||
+            key === "Delete" ||
+            key === "Enter" ||
+            key === "Tab";
+
+        if (isTyping) {
+            showNameTemporarily();
+        }
+    });
+
+    /*
+     * Selecting text.
+     */
+    const selectionDisposable =
+      editorInstance.onDidChangeCursorSelection((event) => {
+        const selection = event.selection;
+
+        const hasSelection =
+          selection.startLineNumber !== selection.endLineNumber ||
+          selection.startColumn !== selection.endColumn;
+
+        if (hasSelection) {
+          showNameTemporarily();
+        }
+      });
+
+    return () => {
+      typingDisposable.dispose();
+      selectionDisposable.dispose();
+
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+    };
+  }, [editorInstance, room, myName, myColor]);
+
+  /*
+   * Generate the CSS used by y-monaco for remote cursors.
+   */
+  useEffect(() => {
+    if (!editorInstance) return;
+
+    const yProvider = getYjsProviderForRoom(room);
+    const awareness = yProvider.awareness as unknown as Awareness;
+
     const styleEl = document.createElement("style");
     document.head.appendChild(styleEl);
 
     const updateStyles = () => {
       const rules: string[] = [];
+
       awareness.getStates().forEach((state, clientId) => {
-        const color = state.user?.color;
-        if (!color) return;
-        rules.push(`.yRemoteSelection-${clientId} { background-color: ${color}55; }`);
-        rules.push(`.yRemoteSelectionHead-${clientId} { border-left: 2px solid ${color}; }`);
+        const user = state.user as UserAwareness | undefined;
+
+        if (!user) return;
+
+        rules.push(`
+          .yRemoteSelection-${clientId},
+          .yRemoteSelectionHead-${clientId} {
+            --user-color: ${user.color};
+          }
+
+          .yRemoteSelectionHead-${clientId}::after {
+            content: ${user.showName ? `"${user.name}"` : '""'};
+          }
+        `);
       });
+
       styleEl.textContent = rules.join("\n");
     };
 
