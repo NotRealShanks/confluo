@@ -110,17 +110,17 @@ code {
   background: var(--code-bg);
 }
 
-/* index.css or App.css: add Liveblocks cursor styles */
+/* Liveblocks remote cursor styles — required for colored cursors/selections */
 .yRemoteSelection {
-  background-color: var(--user-color); /* highlight with injected color */
+  background-color: var(--user-color);
   opacity: 0.5;
-  margin-right: -1px; /* fix offset */
+  margin-right: -1px;
 }
 .yRemoteSelectionHead {
   position: absolute;
   box-sizing: border-box;
   height: 100%;
-  border-left: 2px solid var(--user-color); /* cursor caret */
+  border-left: 2px solid var(--user-color);
 }
 .yRemoteSelectionHead::after {
   position: absolute;
@@ -137,5 +137,4 @@ code {
   white-space: nowrap;
   pointer-events: none;
   user-select: none;
-  /* (From Liveblocks example) */
 }

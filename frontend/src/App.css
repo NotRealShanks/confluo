@@ -1,0 +1,31 @@
+.presence {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #ddd;
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+}
+
+.presence-title {
+  font-weight: 600;
+}
+
+.presence-users {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.presence-user {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.presence-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
