@@ -17,6 +17,9 @@ public class User {
     // "google", "github", or "local"
     private String provider;
 
+    // Provider-side stable ID (Google "sub", GitHub numeric id); null for provider="local"
+    private String providerId;
+
     // Only set for provider="local" — OAuth users never have a password stored here
     private String passwordHash;
 }
