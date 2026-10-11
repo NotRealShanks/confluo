@@ -12,9 +12,9 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import lombok.Data;
 
 @Data
-@Document(collection = "documents")
+@Document(collection = "projects")
 @CompoundIndex(name = "members_user_idx", def = "{'members.userId': 1}")
-public class EditorDocument {
+public class Project {
 
     @Id
     private String id;
@@ -22,7 +22,7 @@ public class EditorDocument {
     private String title;
 
     // The owner is stored here with Role.OWNER; there is no separate ownerId to keep in sync
-    private List<DocumentMember> members = new ArrayList<>();
+    private List<ProjectMember> members = new ArrayList<>();
 
     private Instant createdAt;
     private Instant updatedAt;
@@ -30,7 +30,7 @@ public class EditorDocument {
     public Optional<Role> roleOf(String userId) {
         return members.stream()
                 .filter(m -> m.userId().equals(userId))
-                .map(DocumentMember::role)
+                .map(ProjectMember::role)
                 .findFirst();
     }
 }

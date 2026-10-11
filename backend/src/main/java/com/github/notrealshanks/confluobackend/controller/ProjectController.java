@@ -12,35 +12,35 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.github.notrealshanks.confluobackend.dto.CreateDocumentRequest;
-import com.github.notrealshanks.confluobackend.dto.DocumentResponse;
-import com.github.notrealshanks.confluobackend.service.DocumentService;
+import com.github.notrealshanks.confluobackend.dto.CreateProjectRequest;
+import com.github.notrealshanks.confluobackend.dto.ProjectResponse;
+import com.github.notrealshanks.confluobackend.service.ProjectService;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/api/documents")
+@RequestMapping("/api/projects")
 @RequiredArgsConstructor
-public class DocumentController {
+public class ProjectController {
 
-    private final DocumentService documentService;
+    private final ProjectService projectService;
 
     @PostMapping
-    public ResponseEntity<DocumentResponse> create(
-            Authentication authentication, @Valid @RequestBody CreateDocumentRequest request) {
+    public ResponseEntity<ProjectResponse> create(
+            Authentication authentication, @Valid @RequestBody CreateProjectRequest request) {
         // JwtAuthFilter sets the user id as the principal name
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(documentService.create(authentication.getName(), request));
+                .body(projectService.create(authentication.getName(), request));
     }
 
     @GetMapping
-    public List<DocumentResponse> list(Authentication authentication) {
-        return documentService.listFor(authentication.getName());
+    public List<ProjectResponse> list(Authentication authentication) {
+        return projectService.listFor(authentication.getName());
     }
 
     @GetMapping("/{id}")
-    public DocumentResponse get(Authentication authentication, @PathVariable String id) {
-        return documentService.get(authentication.getName(), id);
+    public ProjectResponse get(Authentication authentication, @PathVariable String id) {
+        return projectService.get(authentication.getName(), id);
     }
 }

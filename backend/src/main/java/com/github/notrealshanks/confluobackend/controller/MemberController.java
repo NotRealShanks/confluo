@@ -23,38 +23,38 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/api/documents/{documentId}/members")
+@RequestMapping("/api/projects/{projectId}/members")
 @RequiredArgsConstructor
 public class MemberController {
 
     private final MemberService memberService;
 
     @GetMapping
-    public List<MemberResponse> list(Authentication authentication, @PathVariable String documentId) {
-        return memberService.list(authentication.getName(), documentId);
+    public List<MemberResponse> list(Authentication authentication, @PathVariable String projectId) {
+        return memberService.list(authentication.getName(), projectId);
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public MemberResponse add(
             Authentication authentication,
-            @PathVariable String documentId,
+            @PathVariable String projectId,
             @Valid @RequestBody AddMemberRequest request) {
-        return memberService.add(authentication.getName(), documentId, request);
+        return memberService.add(authentication.getName(), projectId, request);
     }
 
     @PatchMapping("/{userId}")
     public MemberResponse updateRole(
             Authentication authentication,
-            @PathVariable String documentId,
+            @PathVariable String projectId,
             @PathVariable String userId,
             @Valid @RequestBody UpdateMemberRoleRequest request) {
-        return memberService.updateRole(authentication.getName(), documentId, userId, request.role());
+        return memberService.updateRole(authentication.getName(), projectId, userId, request.role());
     }
 
     @DeleteMapping("/{userId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void remove(Authentication authentication, @PathVariable String documentId, @PathVariable String userId) {
-        memberService.remove(authentication.getName(), documentId, userId);
+    public void remove(Authentication authentication, @PathVariable String projectId, @PathVariable String userId) {
+        memberService.remove(authentication.getName(), projectId, userId);
     }
 }
