@@ -20,6 +20,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import com.github.notrealshanks.confluobackend.security.GitHubUserService;
 import com.github.notrealshanks.confluobackend.security.JwtAuthFilter;
 import com.github.notrealshanks.confluobackend.security.JwtService;
 import com.github.notrealshanks.confluobackend.security.OAuth2LoginHandler;
@@ -30,7 +31,10 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(
-            HttpSecurity http, JwtService jwtService, OAuth2LoginHandler oauthHandler) throws Exception {
+            HttpSecurity http,
+            JwtService jwtService,
+            OAuth2LoginHandler oauthHandler,
+            GitHubUserService gitHubUserService) throws Exception {
         http
                 // Stateless bearer-token API: no cookies, so no CSRF surface
                 .csrf(AbstractHttpConfigurer::disable)
@@ -41,7 +45,11 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**", "/error").permitAll()
                         .anyRequest().authenticated())
-                .oauth2Login(oauth -> oauth.successHandler(oauthHandler).failureHandler(oauthHandler))
+                .oauth2Login(oauth -> oauth
+                        // Google is OIDC and bypasses this; it only serves plain OAuth2 providers like GitHub
+                        .userInfoEndpoint(info -> info.userService(gitHubUserService))
+                        .successHandler(oauthHandler)
+                        .failureHandler(oauthHandler))
                 .addFilterBefore(new JwtAuthFilter(jwtService), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

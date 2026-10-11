@@ -75,6 +75,20 @@ public class OAuth2LoginHandler implements AuthenticationSuccessHandler, Authent
                         user.getAttribute("name"),
                         user.getAttribute("picture"));
             }
+            case "github" -> {
+                // GitHub's id is numeric; store it as a string like the other providers
+                Object id = user.getAttribute("id");
+                String login = user.getAttribute("login");
+                String name = user.getAttribute("name");
+                String email = user.getAttribute(GitHubUserService.VERIFIED_EMAIL_ATTRIBUTE);
+                yield new Profile(
+                        "github",
+                        id == null ? null : String.valueOf(id),
+                        email,
+                        email != null,
+                        name != null ? name : login,
+                        user.getAttribute("avatar_url"));
+            }
             default -> throw new OAuthLoginException("unsupported_provider");
         };
     }
