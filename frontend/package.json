@@ -14,9 +14,12 @@
     "@liveblocks/react": "^3.24.1",
     "@liveblocks/yjs": "^3.24.1",
     "@monaco-editor/react": "^4.7.0",
+    "@tailwindcss/vite": "^4.3.3",
     "monaco-editor": "0.55.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "react-router": "^8.4.0",
+    "tailwindcss": "^4.3.3",
     "y-monaco": "^0.1.6",
     "y-protocols": "^1.0.7",
     "yjs": "^13.6.32"

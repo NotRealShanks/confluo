@@ -1,24 +1,23 @@
-import { useMemo } from "react";
-import { Room } from "./Room";
-import Editor from "./Editor";
-import Presence from "./Presence";
-
-function randomName() {
-  return `Guest${Math.floor(Math.random() * 1000)}`;
-}
-
-function randomColor() {
-  return "#" + Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, "0");
-}
+import { Navigate, Route, Routes } from "react-router";
+import RequireAuth from "./components/RequireAuth";
+import Home from "./pages/Home";
+import Login from "./pages/Login";
+import OAuthCallback from "./pages/OAuthCallback";
+import Sandbox from "./pages/Sandbox";
+import Signup from "./pages/Signup";
 
 export default function App() {
-  const myName = useMemo(randomName, []);
-  const myColor = useMemo(randomColor, []);
-
   return (
-    <Room name={myName}>
-      <Presence />
-      <Editor name={myName} color={myColor} />
-    </Room>
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route path="/signup" element={<Signup />} />
+      <Route path="/oauth/callback" element={<OAuthCallback />} />
+      {/* Temporary: public-key room, remove once the authorized editor exists */}
+      <Route path="/sandbox" element={<Sandbox />} />
+      <Route element={<RequireAuth />}>
+        <Route index element={<Home />} />
+      </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 }
