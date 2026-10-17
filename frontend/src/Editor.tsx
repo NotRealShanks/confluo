@@ -1,16 +1,23 @@
 import { useEffect, useState } from "react";
-import { Editor as MonacoEditor } from "@monaco-editor/react";
+import { Editor as MonacoEditor, type Monaco } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import { MonacoBinding } from "y-monaco";
 import type { Awareness } from "y-protocols/awareness";
-import { useRoom } from "@liveblocks/react/suspense";
+import type { Transaction, YTextEvent } from "yjs";
+import { useRoom, useSelf } from "@liveblocks/react/suspense";
+import { colorFor } from "./lib/color";
 import { getYjsProviderForRoom } from "@liveblocks/yjs";
 
 type UserState = { name: string; color: string; showName?: boolean };
 
-export default function Editor({ name, color }: { name: string; color: string }) {
+export default function Editor() {
   const room = useRoom();
+  // Identity and permission come from the signed token, not from the client
+  const name = useSelf((me) => me.info.name);
+  const color = colorFor(useSelf((me) => me.id));
+  const readOnly = !useSelf((me) => me.canWrite);
   const [editorInstance, setEditorInstance] = useState<editor.IStandaloneCodeEditor>();
+  const [monacoInstance, setMonacoInstance] = useState<Monaco>();
 
   // Set up Yjs doc and MonacoBinding (one-time on editor mount)
   useEffect(() => {
@@ -39,10 +46,11 @@ export default function Editor({ name, color }: { name: string; color: string })
     };
   }, [editorInstance, room, name, color]);
 
-  // Show name on typing or selection, hide after 2s
+  // Show the name tag on this user's own edits and selections, hide after 2s
   useEffect(() => {
-    if (!editorInstance) return;
+    if (!editorInstance || !monacoInstance) return;
     const yProvider = getYjsProviderForRoom(room);
+    const yText = yProvider.getYDoc().getText("monaco");
     const awareness = yProvider.awareness as unknown as Awareness;
     let timeout: ReturnType<typeof setTimeout>;
 
@@ -54,12 +62,17 @@ export default function Editor({ name, color }: { name: string; color: string })
       }, 2000);
     };
 
-    // Fires only on actual content changes, not every keypress
-    const dispEdit = editorInstance.onDidChangeModelContent(() => {
-      showNameNow();
-    });
+    // Remote edits also change the Monaco model, so watch Yjs: only local transactions are ours
+    const onTextChange = (_event: YTextEvent, transaction: Transaction) => {
+      if (transaction.local) {
+        showNameNow();
+      }
+    };
+    yText.observe(onTextChange);
 
     const dispSelect = editorInstance.onDidChangeCursorSelection((e) => {
+      // Remote edits shift cursors too; only an explicit user gesture counts
+      if (e.reason !== monacoInstance.editor.CursorChangeReason.Explicit) return;
       const sel = e.selection;
       const hasSel =
         sel.startLineNumber !== sel.endLineNumber || sel.startColumn !== sel.endColumn;
@@ -69,11 +82,11 @@ export default function Editor({ name, color }: { name: string; color: string })
     });
 
     return () => {
-      dispEdit.dispose();
+      yText.unobserve(onTextChange);
       dispSelect.dispose();
       clearTimeout(timeout);
     };
-  }, [editorInstance, room, name, color]);
+  }, [editorInstance, monacoInstance, room, name, color]);
 
   // Inject dynamic CSS for each user's cursor (color and name)
   useEffect(() => {
@@ -113,10 +126,19 @@ export default function Editor({ name, color }: { name: string; color: string })
   }, [editorInstance, room]);
 
   return (
-    <MonacoEditor
-      height="500px"
-      defaultLanguage="javascript"
-      onMount={(editor) => setEditorInstance(editor)}
-    />
+    <div>
+      {readOnly && (
+        <p className="mb-2 rounded-lg bg-amber-50 p-2 text-sm text-amber-800">You have view-only access to this project.</p>
+      )}
+      <MonacoEditor
+        height="70vh"
+        defaultLanguage="javascript"
+        options={{ readOnly, domReadOnly: readOnly }}
+        onMount={(editor, monaco) => {
+          setEditorInstance(editor);
+          setMonacoInstance(monaco);
+        }}
+      />
+    </div>
   );
 }

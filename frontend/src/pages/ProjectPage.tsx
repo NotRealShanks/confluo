@@ -1,7 +1,11 @@
 import { Link, useParams } from "react-router";
 import { ApiError } from "../api/client";
+import Editor from "../Editor";
+import Presence from "../Presence";
+import { Room } from "../Room";
 import AppShell from "../components/AppShell";
 import RoleBadge from "../components/RoleBadge";
+import { RoomErrorBoundary } from "../components/RoomErrorBoundary";
 import { useProject } from "../projects/hooks";
 
 function ProjectView({ id }: { id: string }) {
@@ -33,9 +37,14 @@ function ProjectView({ id }: { id: string }) {
         <h1 className="truncate text-2xl font-semibold text-gray-900">{project.title}</h1>
         <RoleBadge role={project.role} />
       </div>
-      <p className="mt-6 rounded-xl border border-dashed border-gray-300 bg-white p-8 text-center text-gray-500">
-        The editor for this project arrives in the next step.
-      </p>
+      <div className="mt-6 space-y-3">
+        <RoomErrorBoundary>
+          <Room projectId={project.id}>
+            <Presence />
+            <Editor />
+          </Room>
+        </RoomErrorBoundary>
+      </div>
     </>
   );
 }
@@ -44,7 +53,7 @@ export default function ProjectPage() {
   const { id } = useParams<{ id: string }>();
 
   return (
-    <AppShell>
+    <AppShell wide>
       <Link to="/" className="mb-4 inline-block text-sm text-blue-600 underline">
         ← All projects
       </Link>

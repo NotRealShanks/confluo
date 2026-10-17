@@ -1,9 +1,15 @@
-// Defines what each user broadcasts about themselves in the room
+// Presence is only for cursors; identity comes from the signed Liveblocks token
 declare global {
   interface Liveblocks {
     Presence: {
-      name: string;
       cursor: number | null;
+    };
+    UserMeta: {
+      id: string;
+      info: {
+        name: string;
+        avatar?: string;
+      };
     };
   }
 }
