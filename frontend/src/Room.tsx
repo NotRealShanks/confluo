@@ -1,16 +1,15 @@
-import type { ReactNode } from "react";
-import {
-  LiveblocksProvider,
-  RoomProvider,
-  ClientSideSuspense,
-} from "@liveblocks/react/suspense";
+import { useMemo, type ReactNode } from "react";
+import { ClientSideSuspense, LiveblocksProvider, RoomProvider } from "@liveblocks/react/suspense";
+import { makeAuthEndpoint } from "./liveblocksAuth";
 
-// Wraps children in one shared Liveblocks room
-export function Room({ children, name }: { children: ReactNode; name: string }) {
+// One Liveblocks room per project; the room id is the project id
+export function Room({ projectId, children }: { projectId: string; children: ReactNode }) {
+  const authEndpoint = useMemo(() => makeAuthEndpoint(projectId), [projectId]);
+
   return (
-    <LiveblocksProvider publicApiKey={import.meta.env.VITE_LIVEBLOCKS_PUBLIC_KEY}>
-      <RoomProvider id="confluo-room-1" initialPresence={{ name, cursor: null }}>
-        <ClientSideSuspense fallback={<div>Loading…</div>}>
+    <LiveblocksProvider authEndpoint={authEndpoint}>
+      <RoomProvider id={projectId} initialPresence={{ cursor: null }}>
+        <ClientSideSuspense fallback={<p className="text-gray-600">Connecting to the editor…</p>}>
           {children}
         </ClientSideSuspense>
       </RoomProvider>
