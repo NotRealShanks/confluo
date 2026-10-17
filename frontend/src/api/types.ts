@@ -14,3 +14,12 @@ export type AuthResponse = {
   token: string;
   user: User;
 };
+
+// Mirrors the backend ProjectResponse; role is the caller's own role
+export type Project = {
+  id: string;
+  title: string;
+  role: Role;
+  createdAt: string;
+  updatedAt: string;
+};
