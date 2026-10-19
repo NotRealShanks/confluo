@@ -6,6 +6,7 @@ import type { Awareness } from "y-protocols/awareness";
 import type { Transaction, YTextEvent } from "yjs";
 import { useRoom, useSelf } from "@liveblocks/react/suspense";
 import { colorFor } from "./lib/color";
+import { safeCursorColor, safeCursorName } from "./lib/cursorCss";
 import { getYjsProviderForRoom } from "@liveblocks/yjs";
 
 type UserState = { name: string; color: string; showName?: boolean };
@@ -102,14 +103,16 @@ export default function Editor() {
         const user = state.user as UserState | undefined;
         if (!user) return;
 
+        // Name and color come from another browser, so both are sanitized before entering CSS
+        const label = user.showName ? safeCursorName(user.name) : "";
         css += `
           .yRemoteSelection-${clientId}, .yRemoteSelectionHead-${clientId} {
-            --user-color: ${user.color};
+            --user-color: ${safeCursorColor(user.color)};
           }
         `;
         css += `
           .yRemoteSelectionHead-${clientId}::after {
-            content: ${user.showName ? `"${user.name}"` : '""'};
+            content: "${label}";
           }
         `;
       });
