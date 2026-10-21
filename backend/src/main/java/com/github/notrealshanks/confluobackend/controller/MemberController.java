@@ -18,6 +18,7 @@ import com.github.notrealshanks.confluobackend.dto.AddMemberRequest;
 import com.github.notrealshanks.confluobackend.dto.MemberResponse;
 import com.github.notrealshanks.confluobackend.dto.UpdateMemberRoleRequest;
 import com.github.notrealshanks.confluobackend.service.MemberService;
+import com.github.notrealshanks.confluobackend.security.GuestPrincipal;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,7 @@ public class MemberController {
 
     @GetMapping
     public List<MemberResponse> list(Authentication authentication, @PathVariable String projectId) {
+        rejectGuest(authentication);
         return memberService.list(authentication.getName(), projectId);
     }
 
@@ -40,6 +42,7 @@ public class MemberController {
             Authentication authentication,
             @PathVariable String projectId,
             @Valid @RequestBody AddMemberRequest request) {
+        rejectGuest(authentication);
         return memberService.add(authentication.getName(), projectId, request);
     }
 
@@ -49,12 +52,21 @@ public class MemberController {
             @PathVariable String projectId,
             @PathVariable String userId,
             @Valid @RequestBody UpdateMemberRoleRequest request) {
+        rejectGuest(authentication);
         return memberService.updateRole(authentication.getName(), projectId, userId, request.role());
     }
 
     @DeleteMapping("/{userId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void remove(Authentication authentication, @PathVariable String projectId, @PathVariable String userId) {
+        rejectGuest(authentication);
         memberService.remove(authentication.getName(), projectId, userId);
+    }
+
+    private static void rejectGuest(Authentication authentication) {
+        if (authentication.getPrincipal() instanceof GuestPrincipal) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    HttpStatus.FORBIDDEN, "Guest access is read-only");
+        }
     }
 }

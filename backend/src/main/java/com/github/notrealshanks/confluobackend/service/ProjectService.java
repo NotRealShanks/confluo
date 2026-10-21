@@ -48,6 +48,16 @@ public class ProjectService {
         return toResponse(access.project(), access.role());
     }
 
+    public ProjectResponse getGuest(String projectId) {
+        Project project = requireProject(projectId);
+        return toResponse(project, Role.VIEWER);
+    }
+
+    public Project requireProject(String projectId) {
+        return projectRepository.findById(projectId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
+    }
+
     // Shared by every project endpoint; non-members get 404 so IDs can't be probed
     public Access requireAccess(String userId, String projectId) {
         return projectRepository.findById(projectId)

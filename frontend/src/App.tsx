@@ -5,6 +5,7 @@ import Login from "./pages/Login";
 import OAuthCallback from "./pages/OAuthCallback";
 import ProjectPage from "./pages/ProjectPage";
 import Signup from "./pages/Signup";
+import GuestProjectPage from "./pages/GuestProjectPage";
 
 export default function App() {
   return (
@@ -12,6 +13,7 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
       <Route path="/oauth/callback" element={<OAuthCallback />} />
+      <Route path="/share/:token" element={<GuestProjectPage />} />
       <Route element={<RequireAuth />}>
         <Route index element={<Home />} />
         <Route path="projects/:id" element={<ProjectPage />} />

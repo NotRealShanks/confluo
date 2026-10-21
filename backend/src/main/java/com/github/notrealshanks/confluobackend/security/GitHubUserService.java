@@ -80,7 +80,9 @@ public class GitHubUserService implements OAuth2UserService<OAuth2UserRequest, O
         }
         return emails.stream()
                 .filter(e -> Boolean.TRUE.equals(e.get("primary")) && Boolean.TRUE.equals(e.get("verified")))
-                .map(e -> (String) e.get("email"))
+                .map(e -> e.get("email"))
+                .filter(String.class::isInstance)
+                .map(String.class::cast)
                 .findFirst()
                 .orElse(null);
     }

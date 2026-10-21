@@ -29,8 +29,9 @@ public class Project {
 
     public Optional<Role> roleOf(String userId) {
         return members.stream()
-                .filter(m -> m.userId().equals(userId))
+                .filter(m -> m != null && m.userId() != null && m.userId().equals(userId))
                 .map(ProjectMember::role)
+                .filter(java.util.Objects::nonNull)
                 .findFirst();
     }
 }

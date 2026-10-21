@@ -9,6 +9,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.github.notrealshanks.confluobackend.dto.UserResponse;
 import com.github.notrealshanks.confluobackend.repository.UserRepository;
+import com.github.notrealshanks.confluobackend.security.GuestPrincipal;
 
 import lombok.RequiredArgsConstructor;
 
@@ -21,6 +22,9 @@ public class UserController {
 
     @GetMapping("/me")
     public UserResponse me(Authentication authentication) {
+        if (authentication.getPrincipal() instanceof GuestPrincipal) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Guest access is read-only");
+        }
         // The filter sets the user id as the principal name
         return userRepository.findById(authentication.getName())
                 .map(UserResponse::from)
