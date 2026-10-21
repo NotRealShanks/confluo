@@ -27,16 +27,21 @@ export function tabReducer(state: TabState, action: TabAction): TabState {
   if (action.type === "reconcile") {
     const validIds = new Set(action.validFileIds);
     const openFileIds = state.openFileIds.filter((id) => validIds.has(id));
-    if (openFileIds.length === state.openFileIds.length) return state;
-
-    if (state.selectedFileId && validIds.has(state.selectedFileId)) {
+    const selectedIsValid =
+      state.selectedFileId !== null &&
+      validIds.has(state.selectedFileId) &&
+      openFileIds.includes(state.selectedFileId);
+    if (selectedIsValid && openFileIds.length === state.openFileIds.length) return state;
+    if (selectedIsValid) {
       return { openFileIds, selectedFileId: state.selectedFileId };
     }
 
     const removedIndex = state.openFileIds.indexOf(state.selectedFileId ?? "");
     return {
       openFileIds,
-      selectedFileId: openFileIds[removedIndex] ?? openFileIds[removedIndex - 1] ?? null,
+      selectedFileId: openFileIds[removedIndex < 0 ? 0 : removedIndex] ??
+        openFileIds[removedIndex - 1] ??
+        null,
     };
   }
 

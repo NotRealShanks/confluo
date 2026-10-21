@@ -29,4 +29,20 @@ describe("tabReducer", () => {
       { type: "reconcile", validFileIds: [] },
     )).toEqual({ openFileIds: [], selectedFileId: null });
   });
+
+  it("repairs an invalid selection even when all open tabs are valid", () => {
+    const state: TabState = { openFileIds: ["one", "two"], selectedFileId: "missing" };
+    expect(tabReducer(state, { type: "reconcile", validFileIds: ["one", "two"] })).toEqual({
+      openFileIds: ["one", "two"],
+      selectedFileId: "one",
+    });
+  });
+
+  it("clears an invalid selection when no valid open tabs remain", () => {
+    const state: TabState = { openFileIds: ["one"], selectedFileId: "missing" };
+    expect(tabReducer(state, { type: "reconcile", validFileIds: [] })).toEqual({
+      openFileIds: [],
+      selectedFileId: null,
+    });
+  });
 });
