@@ -51,7 +51,7 @@ export default function GuestProjectPage() {
             <div className="ide-header-spacer" />
             <span className="ide-guest-badge">Guest · View only</span>
           </header>
-          <CollaborativeWorkspace />
+          <CollaborativeWorkspace canInitialize={false} />
         </Room>
       </RoomErrorBoundary>
     </div>

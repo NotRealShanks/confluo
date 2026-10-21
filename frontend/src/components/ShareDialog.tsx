@@ -42,6 +42,7 @@ export default function ShareDialog({ projectId, projectRole, onClose }: Props) 
   const [linkBusy, setLinkBusy] = useState(false);
   const [linkLoading, setLinkLoading] = useState(canManageLinks);
   const [linkMessage, setLinkMessage] = useState("");
+  const [newLinkUrl, setNewLinkUrl] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -88,6 +89,7 @@ export default function ShareDialog({ projectId, projectRole, onClose }: Props) 
     setError("");
     setLinkError("");
     setLinkMessage("");
+    setNewLinkUrl("");
     try {
       const expiresAt = linkExpiration
         ? new Date(`${linkExpiration}T23:59:59`).toISOString()
@@ -95,16 +97,25 @@ export default function ShareDialog({ projectId, projectRole, onClose }: Props) 
       const link = await createShareLink(projectId, expiresAt);
       setShareLinks((current) => [link, ...current]);
       if (link.token) {
-        await navigator.clipboard?.writeText(
-          `${window.location.origin}/share/${link.token}`,
-        );
-        setLinkMessage("Link created and copied to the clipboard.");
+        const url = `${window.location.origin}/share/${link.token}`;
+        setNewLinkUrl(url);
+        await copyLink(url);
       }
       setLinkExpiration("");
     } catch {
       setLinkError("Could not create share link.");
     } finally {
       setLinkBusy(false);
+    }
+  }
+
+  async function copyLink(url: string) {
+    try {
+      if (!navigator.clipboard) throw new Error("Clipboard API unavailable");
+      await navigator.clipboard.writeText(url);
+      setLinkMessage("Link copied to the clipboard.");
+    } catch {
+      setLinkMessage("Link could not be copied. Select and copy it below.");
     }
   }
 
@@ -339,6 +350,23 @@ export default function ShareDialog({ projectId, projectRole, onClose }: Props) 
             <p role="status" className="mt-2 text-xs text-green-700">
               {linkMessage}
             </p>
+          )}
+          {newLinkUrl && (
+            <div className="mt-2 flex gap-2">
+              <input
+                aria-label="New share link"
+                readOnly
+                value={newLinkUrl}
+                className="min-w-0 flex-1 rounded-lg border border-gray-300 px-2 py-1.5 text-xs"
+              />
+              <button
+                type="button"
+                onClick={() => void copyLink(newLinkUrl)}
+                className="shrink-0 rounded-lg border border-gray-300 px-2 py-1.5 text-xs font-medium text-gray-700"
+              >
+                Copy
+              </button>
+            </div>
           )}
           <ul className="mt-3 space-y-2">
             {shareLinks.map((link) => (

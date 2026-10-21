@@ -113,3 +113,7 @@ export function ensureWorkspace(doc: Y.Doc): boolean {
   });
   return true;
 }
+
+export function ensureWorkspaceIfAllowed(doc: Y.Doc, canInitialize: boolean): boolean {
+  return canInitialize && ensureWorkspace(doc);
+}

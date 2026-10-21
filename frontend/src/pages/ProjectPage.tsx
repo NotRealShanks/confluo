@@ -25,7 +25,7 @@ import { RoomErrorBoundary } from "../components/RoomErrorBoundary";
 import ShareDialog from "../components/ShareDialog";
 import { useAuth } from "../auth/context";
 import { useProject } from "../projects/hooks";
-import { ensureWorkspace, snapshot } from "../workspace/ops";
+import { ensureWorkspaceIfAllowed, snapshot } from "../workspace/ops";
 import WorkspaceExplorer from "../workspace/WorkspaceExplorer";
 import { useRoom } from "@liveblocks/react/suspense";
 import { initialTabState, tabReducer } from "../workspace/tabState";
@@ -65,7 +65,7 @@ function BottomPanel({ open, onToggle }: { open: boolean; onToggle: () => void }
   );
 }
 
-export function CollaborativeWorkspace() {
+export function CollaborativeWorkspace({ canInitialize = true }: { canInitialize?: boolean }) {
   const room = useRoom();
   const provider = getYjsProviderForRoom(room);
   const doc = provider.getYDoc();
@@ -78,13 +78,13 @@ export function CollaborativeWorkspace() {
   useEffect(() => {
     const onSynced = (synced: boolean) => {
       if (!synced) { setReady(false); return; }
-      ensureWorkspace(doc);
+      ensureWorkspaceIfAllowed(doc, canInitialize);
       setReady(true);
     };
     provider.on("synced", onSynced);
     if (provider.synced) onSynced(true);
     return () => provider.off("synced", onSynced);
-  }, [doc, provider]);
+  }, [canInitialize, doc, provider]);
 
   useEffect(() => {
     const reconcileTabs = () => {
@@ -169,7 +169,7 @@ function ProjectView({ id }: { id: string }) {
       <RoomErrorBoundary>
         <Room projectId={project.id}>
           <ProjectHeader project={project} />
-          <CollaborativeWorkspace />
+          <CollaborativeWorkspace canInitialize={project.role !== "VIEWER"} />
         </Room>
       </RoomErrorBoundary>
     </div>

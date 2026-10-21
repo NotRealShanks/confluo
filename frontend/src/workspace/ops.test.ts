@@ -4,6 +4,7 @@ import {
   createNode,
   deleteNode,
   ensureWorkspace,
+  ensureWorkspaceIfAllowed,
   getFileText,
   moveNode,
   newId,
@@ -179,6 +180,20 @@ describe("two people editing at once", () => {
 });
 
 describe("ensureWorkspace", () => {
+  it("does not initialize an empty workspace for a read-only guest", () => {
+    const doc = new Y.Doc();
+
+    expect(ensureWorkspaceIfAllowed(doc, false)).toBe(false);
+    expect(snapshot(doc).nodes.size).toBe(0);
+  });
+
+  it.each(["owner", "editor"])("initializes an empty workspace for an authorized %s", () => {
+    const doc = new Y.Doc();
+
+    expect(ensureWorkspaceIfAllowed(doc, true)).toBe(true);
+    expect(snapshot(doc).nodes.size).toBe(1);
+  });
+
   it("creates one main file, carrying over text from before multi-file existed", () => {
     const doc = new Y.Doc();
     doc.getText("monaco").insert(0, "console.log('legacy');");
