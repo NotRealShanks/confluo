@@ -151,7 +151,7 @@ function ProjectHeader({ project }: { project: Project }) {
         {user?.avatarUrl && <img src={user.avatarUrl} alt="" className="ide-avatar" referrerPolicy="no-referrer" />}
         <button type="button" className="ide-signout" onClick={signOut}>{user?.name ?? "Account"}</button>
       </header>
-      {shareOpen && <ShareDialog projectId={project.id} onClose={() => setShareOpen(false)} />}
+      {shareOpen && <ShareDialog projectId={project.id} projectRole={project.role} onClose={() => setShareOpen(false)} />}
     </>
   );
 }

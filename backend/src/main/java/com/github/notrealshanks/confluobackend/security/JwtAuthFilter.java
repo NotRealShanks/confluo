@@ -39,7 +39,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             JwtService.TokenClaims claims = jwtService.parseToken(header.substring(BEARER_PREFIX.length()));
 
             if (claims != null && SecurityContextHolder.getContext().getAuthentication() == null
-                    && (!claims.guest() || isActiveGuestLink(claims))) {
+                    && (!claims.guest() || hasValidGuestClaims(claims) && isActiveGuestLink(claims))) {
                 // No authorities yet; roles come with RBAC
                 Object principal = claims.guest()
                         ? new GuestPrincipal(claims.subject(), claims.projectId(), claims.shareLinkId())
@@ -57,7 +57,13 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     private boolean isActiveGuestLink(JwtService.TokenClaims claims) {
         return shareLinkRepository.findById(claims.shareLinkId())
+                .filter(link -> claims.projectId().equals(link.getProjectId()))
                 .map(link -> link.isActive(Instant.now()))
                 .orElse(false);
+    }
+
+    private static boolean hasValidGuestClaims(JwtService.TokenClaims claims) {
+        return claims.projectId() != null && !claims.projectId().isBlank()
+                && claims.shareLinkId() != null && !claims.shareLinkId().isBlank();
     }
 }

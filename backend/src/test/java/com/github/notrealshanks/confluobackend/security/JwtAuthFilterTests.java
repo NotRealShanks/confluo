@@ -48,6 +48,7 @@ class JwtAuthFilterTests {
     void activeLinkCreatesProjectScopedGuestPrincipal() throws Exception {
         ShareLink active = new ShareLink();
         active.setId("link-1");
+        active.setProjectId("project-1");
         active.setExpiresAt(Instant.now().plusSeconds(60));
         when(jwtService.parseToken("guest-jwt"))
                 .thenReturn(new JwtService.TokenClaims("guest-1", true, "project-1", "link-1"));
@@ -63,6 +64,78 @@ class JwtAuthFilterTests {
                 .getAuthentication().getPrincipal();
         org.junit.jupiter.api.Assertions.assertEquals("project-1", principal.projectId());
         org.junit.jupiter.api.Assertions.assertEquals("link-1", principal.shareLinkId());
+    }
+
+    @Test
+    void mismatchedLinkProjectCannotAuthenticateGuest() throws Exception {
+        ShareLink link = new ShareLink();
+        link.setId("link-1");
+        link.setProjectId("project-2");
+        when(jwtService.parseToken("guest-jwt"))
+                .thenReturn(new JwtService.TokenClaims("guest-1", true, "project-1", "link-1"));
+        when(shareLinkRepository.findById("link-1")).thenReturn(Optional.of(link));
+
+        SecurityContextHolder.clearContext();
+        new JwtAuthFilter(jwtService, shareLinkRepository).doFilter(
+                requestWithBearer("guest-jwt"), new MockHttpServletResponse(), chain);
+
+        assertNull(SecurityContextHolder.getContext().getAuthentication());
+    }
+
+    @Test
+    void expiredLinkCannotAuthenticateGuest() throws Exception {
+        ShareLink link = new ShareLink();
+        link.setId("link-1");
+        link.setProjectId("project-1");
+        link.setExpiresAt(Instant.now().minusSeconds(1));
+        when(jwtService.parseToken("guest-jwt"))
+                .thenReturn(new JwtService.TokenClaims("guest-1", true, "project-1", "link-1"));
+        when(shareLinkRepository.findById("link-1")).thenReturn(Optional.of(link));
+
+        SecurityContextHolder.clearContext();
+        new JwtAuthFilter(jwtService, shareLinkRepository).doFilter(
+                requestWithBearer("guest-jwt"), new MockHttpServletResponse(), chain);
+
+        assertNull(SecurityContextHolder.getContext().getAuthentication());
+    }
+
+    @Test
+    void deletedLinkCannotAuthenticateGuest() throws Exception {
+        when(jwtService.parseToken("guest-jwt"))
+                .thenReturn(new JwtService.TokenClaims("guest-1", true, "project-1", "missing-link"));
+        when(shareLinkRepository.findById("missing-link")).thenReturn(Optional.empty());
+
+        SecurityContextHolder.clearContext();
+        new JwtAuthFilter(jwtService, shareLinkRepository).doFilter(
+                requestWithBearer("guest-jwt"), new MockHttpServletResponse(), chain);
+
+        assertNull(SecurityContextHolder.getContext().getAuthentication());
+    }
+
+    @Test
+    void malformedGuestClaimsCannotAuthenticate() throws Exception {
+        when(jwtService.parseToken("guest-jwt"))
+                .thenReturn(new JwtService.TokenClaims("guest-1", true, "project-1", null));
+
+        SecurityContextHolder.clearContext();
+        new JwtAuthFilter(jwtService, shareLinkRepository).doFilter(
+                requestWithBearer("guest-jwt"), new MockHttpServletResponse(), chain);
+
+        assertNull(SecurityContextHolder.getContext().getAuthentication());
+    }
+
+    @Test
+    void registeredUserAuthenticationDoesNotQueryShareLinks() throws Exception {
+        when(jwtService.parseToken("user-jwt"))
+                .thenReturn(new JwtService.TokenClaims("user-1", false, null, null));
+
+        SecurityContextHolder.clearContext();
+        new JwtAuthFilter(jwtService, shareLinkRepository).doFilter(
+                requestWithBearer("user-jwt"), new MockHttpServletResponse(), chain);
+
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "user-1", SecurityContextHolder.getContext().getAuthentication().getName());
+        org.mockito.Mockito.verifyNoInteractions(shareLinkRepository);
     }
 
     private static MockHttpServletRequest requestWithBearer(String token) {

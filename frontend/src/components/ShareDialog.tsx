@@ -13,19 +13,23 @@ import {
   revokeShareLink,
   type ShareLink,
 } from "../api/shareLinks";
+import type { Role } from "../api/types";
 
 type Props = {
   projectId: string;
+  projectRole: Role;
   onClose: () => void;
 };
 
-export default function ShareDialog({ projectId, onClose }: Props) {
+export default function ShareDialog({ projectId, projectRole, onClose }: Props) {
+  const canManageLinks = projectRole === "OWNER";
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"EDITOR" | "VIEWER">("EDITOR");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [linkError, setLinkError] = useState("");
   const [addMessage, setAddMessage] = useState("");
   const [roleMessage, setRoleMessage] = useState<{
     userId: string;
@@ -36,6 +40,7 @@ export default function ShareDialog({ projectId, onClose }: Props) {
   const [shareLinks, setShareLinks] = useState<ShareLink[]>([]);
   const [linkExpiration, setLinkExpiration] = useState("");
   const [linkBusy, setLinkBusy] = useState(false);
+  const [linkLoading, setLinkLoading] = useState(canManageLinks);
   const [linkMessage, setLinkMessage] = useState("");
 
   useEffect(() => {
@@ -46,12 +51,8 @@ export default function ShareDialog({ projectId, onClose }: Props) {
       setError("");
 
       try {
-        const [data, links] = await Promise.all([
-          listMembers(projectId),
-          listShareLinks(projectId),
-        ]);
+        const data = await listMembers(projectId);
         if (!cancelled) setMembers(data);
-        if (!cancelled) setShareLinks(links);
       } catch {
         if (!cancelled) setError("Could not load project members.");
       } finally {
@@ -59,17 +60,33 @@ export default function ShareDialog({ projectId, onClose }: Props) {
       }
     }
 
+    async function loadLinks() {
+      if (!canManageLinks) return;
+      setLinkLoading(true);
+      setLinkError("");
+      try {
+        const links = await listShareLinks(projectId);
+        if (!cancelled) setShareLinks(links);
+      } catch {
+        if (!cancelled) setLinkError("Could not load share links.");
+      } finally {
+        if (!cancelled) setLinkLoading(false);
+      }
+    }
+
     void loadMembers();
+    void loadLinks();
 
     return () => {
       cancelled = true;
     };
-  }, [projectId]);
+  }, [canManageLinks, projectId]);
 
   async function handleCreateLink() {
     if (linkBusy) return;
     setLinkBusy(true);
     setError("");
+    setLinkError("");
     setLinkMessage("");
     try {
       const expiresAt = linkExpiration
@@ -85,7 +102,7 @@ export default function ShareDialog({ projectId, onClose }: Props) {
       }
       setLinkExpiration("");
     } catch {
-      setError("Could not create share link.");
+      setLinkError("Could not create share link.");
     } finally {
       setLinkBusy(false);
     }
@@ -95,6 +112,7 @@ export default function ShareDialog({ projectId, onClose }: Props) {
     if (linkBusy || !window.confirm("Revoke this share link?")) return;
     setLinkBusy(true);
     setError("");
+    setLinkError("");
     try {
       await revokeShareLink(projectId, link.id);
       setShareLinks((current) =>
@@ -105,7 +123,7 @@ export default function ShareDialog({ projectId, onClose }: Props) {
         ),
       );
     } catch {
-      setError("Could not revoke share link.");
+      setLinkError("Could not revoke share link.");
     } finally {
       setLinkBusy(false);
     }
@@ -285,7 +303,7 @@ export default function ShareDialog({ projectId, onClose }: Props) {
           </p>
         )}
 
-        <div className="mt-5 border-t border-gray-100 pt-4">
+        {canManageLinks && <div className="mt-5 border-t border-gray-100 pt-4">
           <h3 className="text-sm font-semibold text-gray-900">Guest viewer links</h3>
           <p className="mt-1 text-xs text-gray-500">
             Anyone with an active link can view this project without editing.
@@ -311,6 +329,12 @@ export default function ShareDialog({ projectId, onClose }: Props) {
               Create link
             </button>
           </div>
+          {linkLoading && (
+            <p className="mt-2 text-xs text-gray-500" role="status">Loading share links…</p>
+          )}
+          {linkError && (
+            <p className="mt-2 text-xs text-red-700" role="alert">{linkError}</p>
+          )}
           {linkMessage && (
             <p role="status" className="mt-2 text-xs text-green-700">
               {linkMessage}
@@ -339,7 +363,7 @@ export default function ShareDialog({ projectId, onClose }: Props) {
               </li>
             ))}
           </ul>
-        </div>
+        </div>}
 
         <div className="mt-5">
           <h3 className="text-sm font-semibold text-gray-900">
