@@ -211,8 +211,14 @@ export default function WorkspaceExplorer({
         <div className="ide-context-menu" style={{ left: contextMenu.x, top: contextMenu.y }} role="menu" onClick={(event) => event.stopPropagation()}>
           {canWrite && (
             <>
-              <button type="button" role="menuitem" onClick={() => create("file", contextMenu.node?.type === "folder" ? contextMenu.node.id : null)}><Plus size={14} /> New File</button>
-              <button type="button" role="menuitem" onClick={() => create("folder", contextMenu.node?.type === "folder" ? contextMenu.node.id : null)}><FolderPlus size={14} /> New Folder</button>
+              <button type="button" role="menuitem" onClick={() => {
+                setContextMenu(null);
+                create("file", contextMenu.node?.type === "folder" ? contextMenu.node.id : null);
+              }}><Plus size={14} /> New File</button>
+              <button type="button" role="menuitem" onClick={() => {
+                setContextMenu(null);
+                create("folder", contextMenu.node?.type === "folder" ? contextMenu.node.id : null);
+              }}><FolderPlus size={14} /> New Folder</button>
             </>
           )}
           {canWrite && contextMenu.node && (
