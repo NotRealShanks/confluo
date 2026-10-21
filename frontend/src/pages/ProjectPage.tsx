@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useReducer, useState } from "react";
 import { Link, useParams } from "react-router";
 import { getYjsProviderForRoom } from "@liveblocks/yjs";
 import {
@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { ApiError } from "../api/client";
+import type { Project } from "../api/types";
 import Editor from "../Editor";
 import Presence from "../Presence";
 import { Room } from "../Room";
@@ -27,6 +28,7 @@ import { useProject } from "../projects/hooks";
 import { ensureWorkspace, snapshot } from "../workspace/ops";
 import WorkspaceExplorer from "../workspace/WorkspaceExplorer";
 import { useRoom } from "@liveblocks/react/suspense";
+import { initialTabState, tabReducer } from "../workspace/tabState";
 
 type PanelTab = "terminal" | "output" | "problems";
 
@@ -68,8 +70,7 @@ function CollaborativeWorkspace() {
   const provider = getYjsProviderForRoom(room);
   const doc = provider.getYDoc();
   const [ready, setReady] = useState(provider.synced);
-  const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
-  const [openFileIds, setOpenFileIds] = useState<string[]>([]);
+  const [{ selectedFileId, openFileIds }, dispatchTabs] = useReducer(tabReducer, initialTabState);
   const [panelOpen, setPanelOpen] = useState(false);
   const [explorerOpen, setExplorerOpen] = useState(true);
   const view = snapshot(doc);
@@ -86,22 +87,7 @@ function CollaborativeWorkspace() {
   }, [doc, provider]);
 
   const selectFile = (id: string) => {
-    if (!id) {
-      setSelectedFileId(null);
-      setOpenFileIds((ids) => ids.filter((fileId) => fileId !== selectedFileId));
-      return;
-    }
-    setSelectedFileId(id);
-    setOpenFileIds((ids) => ids.includes(id) ? ids : [...ids, id]);
-  };
-
-  const closeTab = (id: string) => {
-    setOpenFileIds((ids) => {
-      const index = ids.indexOf(id);
-      const next = ids.filter((fileId) => fileId !== id);
-      if (id === selectedFileId) setSelectedFileId(next[index] ?? next[index - 1] ?? null);
-      return next;
-    });
+    if (id) dispatchTabs({ type: "select", fileId: id });
   };
 
   return (
@@ -116,8 +102,8 @@ function CollaborativeWorkspace() {
             const node = view.nodes.get(id);
             if (!node) return null;
             return <div key={id} className={`ide-tab ${id === selectedFileId ? "is-active" : ""}`} role="tab" aria-selected={id === selectedFileId}>
-              <button type="button" onClick={() => setSelectedFileId(id)}><Braces size={14} />{view.displayNames.get(id) ?? node.name}</button>
-              <button type="button" className="ide-tab-close" aria-label={`Close ${node.name}`} onClick={() => closeTab(id)}><X size={14} /></button>
+              <button type="button" onClick={() => dispatchTabs({ type: "select", fileId: id })}><Braces size={14} />{view.displayNames.get(id) ?? node.name}</button>
+              <button type="button" className="ide-tab-close" aria-label={`Close ${node.name}`} onClick={() => dispatchTabs({ type: "close", fileId: id })}><X size={14} /></button>
             </div>;
           })}
           {openFileIds.length === 0 && <span className="ide-tabs-empty">No files open</span>}
@@ -131,19 +117,12 @@ function CollaborativeWorkspace() {
   );
 }
 
-function ProjectView({ id }: { id: string }) {
-  const { state, reload } = useProject(id);
+function ProjectHeader({ project }: { project: Project }) {
   const { user, signOut } = useAuth();
   const [shareOpen, setShareOpen] = useState(false);
 
-  if (state.status === "loading") return <div className="ide-loading">Loading project…</div>;
-  if (state.status === "error") {
-    const notFound = state.error instanceof ApiError && state.error.status === 404;
-    return <div className="ide-error" role="alert">{notFound ? "Project not found, or you don't have access to it." : "Could not load the project."} {!notFound && <button onClick={reload}>Try again</button>}</div>;
-  }
-  const project = state.data;
   return (
-    <div className="ide-shell">
+    <>
       <header className="ide-header">
         <Link to="/" className="ide-brand" aria-label="Back to project dashboard"><Braces size={18} /> Confluo</Link>
         <span className="ide-header-divider" />
@@ -157,8 +136,27 @@ function ProjectView({ id }: { id: string }) {
         {user?.avatarUrl && <img src={user.avatarUrl} alt="" className="ide-avatar" referrerPolicy="no-referrer" />}
         <button type="button" className="ide-signout" onClick={signOut}>{user?.name ?? "Account"}</button>
       </header>
-      <RoomErrorBoundary><Room projectId={project.id}><CollaborativeWorkspace /></Room></RoomErrorBoundary>
       {shareOpen && <ShareDialog projectId={project.id} onClose={() => setShareOpen(false)} />}
+    </>
+  );
+}
+
+function ProjectView({ id }: { id: string }) {
+  const { state, reload } = useProject(id);
+  if (state.status === "loading") return <div className="ide-loading">Loading project…</div>;
+  if (state.status === "error") {
+    const notFound = state.error instanceof ApiError && state.error.status === 404;
+    return <div className="ide-error" role="alert">{notFound ? "Project not found, or you don't have access to it." : "Could not load the project."} {!notFound && <button onClick={reload}>Try again</button>}</div>;
+  }
+  const project = state.data;
+  return (
+    <div className="ide-shell">
+      <RoomErrorBoundary>
+        <Room projectId={project.id}>
+          <ProjectHeader project={project} />
+          <CollaborativeWorkspace />
+        </Room>
+      </RoomErrorBoundary>
     </div>
   );
 }

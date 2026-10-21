@@ -16,6 +16,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { createNode, deleteNode, renameNode, snapshot } from "./ops";
+import { getContextMenuPosition } from "./contextMenu";
 import { descendantIds } from "./tree";
 import type { TreeNode } from "./types";
 
@@ -141,7 +142,10 @@ export default function WorkspaceExplorer({
             style={{ paddingLeft: `${depth * 12 + 4}px` }}
             onContextMenu={(event) => {
               event.preventDefault();
-              setContextMenu({ x: event.clientX, y: event.clientY, node });
+              setContextMenu({
+                ...getContextMenuPosition(event.clientX, event.clientY, window.innerWidth, window.innerHeight),
+                node,
+              });
             }}
           >
             {node.type === "folder" ? (
@@ -196,7 +200,10 @@ export default function WorkspaceExplorer({
         <ul className="ide-tree" onContextMenu={(event) => {
           if (event.target !== event.currentTarget) return;
           event.preventDefault();
-          setContextMenu({ x: event.clientX, y: event.clientY, node: null });
+          setContextMenu({
+            ...getContextMenuPosition(event.clientX, event.clientY, window.innerWidth, window.innerHeight),
+            node: null,
+          });
         }}>{renderNodes(null, 0)}</ul>
       )}
       {view.truncated && <p className="ide-explorer-message warning">Some items are hidden because this workspace is at its limit.</p>}

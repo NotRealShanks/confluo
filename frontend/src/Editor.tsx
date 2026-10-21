@@ -27,10 +27,11 @@ export default function Editor({ doc, fileId, workspaceReady = true }: EditorPro
   const readOnly = !useSelf((me) => me.canWrite);
   const [editorInstance, setEditorInstance] = useState<editor.IStandaloneCodeEditor>();
   const [monacoInstance, setMonacoInstance] = useState<Monaco>();
+  const [mountedFileId, setMountedFileId] = useState<string | null | undefined>(fileId);
 
   // Set up Yjs doc and MonacoBinding (one-time on editor mount)
   useEffect(() => {
-    if (!editorInstance) return;
+    if (!editorInstance || mountedFileId !== fileId) return;
     const yProvider = getYjsProviderForRoom(room);
     if (!workspaceReady) return;
     const yDoc = doc ?? yProvider.getYDoc();
@@ -55,11 +56,11 @@ export default function Editor({ doc, fileId, workspaceReady = true }: EditorPro
     return () => {
       binding.destroy();
     };
-  }, [doc, editorInstance, fileId, room, name, color, workspaceReady]);
+  }, [doc, editorInstance, fileId, mountedFileId, room, name, color, workspaceReady]);
 
   // Show the name tag on this user's own edits and selections, hide after 2s
   useEffect(() => {
-    if (!editorInstance || !monacoInstance) return;
+    if (!editorInstance || !monacoInstance || mountedFileId !== fileId) return;
     const yProvider = getYjsProviderForRoom(room);
     const yDoc = doc ?? yProvider.getYDoc();
     const yText = fileId ? getFileText(yDoc, fileId) : yDoc.getText("monaco");
@@ -99,7 +100,7 @@ export default function Editor({ doc, fileId, workspaceReady = true }: EditorPro
       dispSelect.dispose();
       clearTimeout(timeout);
     };
-  }, [doc, editorInstance, fileId, monacoInstance, room, name, color, workspaceReady]);
+  }, [doc, editorInstance, fileId, mountedFileId, monacoInstance, room, name, color, workspaceReady]);
 
   // Inject dynamic CSS for each user's cursor (color and name)
   useEffect(() => {
@@ -165,6 +166,7 @@ export default function Editor({ doc, fileId, workspaceReady = true }: EditorPro
               scrollBeyondLastLine: false,
             }}
             onMount={(editor, monaco) => {
+              setMountedFileId(fileId);
               setEditorInstance(editor);
               setMonacoInstance(monaco);
             }}
