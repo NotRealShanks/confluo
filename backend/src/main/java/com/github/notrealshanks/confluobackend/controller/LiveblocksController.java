@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.github.notrealshanks.confluobackend.dto.LiveblocksAuthRequest;
 import com.github.notrealshanks.confluobackend.dto.LiveblocksTokenResponse;
 import com.github.notrealshanks.confluobackend.service.LiveblocksAuthService;
+import com.github.notrealshanks.confluobackend.security.GuestPrincipal;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +24,9 @@ public class LiveblocksController {
     @PostMapping("/auth")
     public LiveblocksTokenResponse auth(
             Authentication authentication, @Valid @RequestBody LiveblocksAuthRequest request) {
+        if (authentication.getPrincipal() instanceof GuestPrincipal guest) {
+            return liveblocksAuthService.authorizeGuest(guest, request.room());
+        }
         return liveblocksAuthService.authorize(authentication.getName(), request.room());
     }
 }

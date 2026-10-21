@@ -3,8 +3,15 @@ import { ClientSideSuspense, LiveblocksProvider, RoomProvider } from "@liveblock
 import { makeAuthEndpoint } from "./liveblocksAuth";
 
 // One Liveblocks room per project; the room id is the project id
-export function Room({ projectId, children }: { projectId: string; children: ReactNode }) {
-  const authEndpoint = useMemo(() => makeAuthEndpoint(projectId), [projectId]);
+export function Room({ projectId, accessToken, children }: {
+  projectId: string;
+  accessToken?: string;
+  children: ReactNode;
+}) {
+  const authEndpoint = useMemo(
+    () => makeAuthEndpoint(projectId, accessToken),
+    [projectId, accessToken],
+  );
 
   return (
     <LiveblocksProvider authEndpoint={authEndpoint}>

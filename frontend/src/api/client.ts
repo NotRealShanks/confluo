@@ -15,9 +15,13 @@ export class ApiError extends Error {
   }
 }
 
-export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+export async function apiFetch<T>(
+  path: string,
+  init: RequestInit = {},
+  accessToken?: string,
+): Promise<T> {
   const headers = new Headers(init.headers);
-  const token = getToken();
+  const token = accessToken ?? getToken();
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
   }

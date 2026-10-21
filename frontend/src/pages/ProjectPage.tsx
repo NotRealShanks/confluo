@@ -65,7 +65,7 @@ function BottomPanel({ open, onToggle }: { open: boolean; onToggle: () => void }
   );
 }
 
-function CollaborativeWorkspace() {
+export function CollaborativeWorkspace() {
   const room = useRoom();
   const provider = getYjsProviderForRoom(room);
   const doc = provider.getYDoc();

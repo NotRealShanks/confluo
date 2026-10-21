@@ -5,6 +5,7 @@ import java.util.Map;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
@@ -27,5 +28,10 @@ public class ApiExceptionHandler {
         ex.getBindingResult().getFieldErrors()
                 .forEach(e -> fields.putIfAbsent(e.getField(), e.getDefaultMessage()));
         return ResponseEntity.badRequest().body(new ApiError(400, "Validation failed", fields));
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiError> handleUnreadableMessage(HttpMessageNotReadableException ex) {
+        return ResponseEntity.badRequest().body(new ApiError(400, "Request body is invalid", Map.of()));
     }
 }

@@ -31,11 +31,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         String header = request.getHeader(HttpHeaders.AUTHORIZATION);
 
         if (header != null && header.startsWith(BEARER_PREFIX)) {
-            String userId = jwtService.extractUserId(header.substring(BEARER_PREFIX.length()));
+            JwtService.TokenClaims claims = jwtService.parseToken(header.substring(BEARER_PREFIX.length()));
 
-            if (userId != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+            if (claims != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 // No authorities yet; roles come with RBAC
-                var authentication = UsernamePasswordAuthenticationToken.authenticated(userId, null, List.of());
+                Object principal = claims.guest()
+                        ? new GuestPrincipal(claims.subject(), claims.projectId())
+                        : claims.subject();
+                var authentication = UsernamePasswordAuthenticationToken.authenticated(principal, null, List.of());
                 SecurityContext context = SecurityContextHolder.createEmptyContext();
                 context.setAuthentication(authentication);
                 SecurityContextHolder.setContext(context);

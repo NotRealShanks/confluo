@@ -43,7 +43,7 @@ public class SecurityConfig {
                 // Default with no login mechanism is 403; return 401 for missing credentials
                 .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**", "/error").permitAll()
+                        .requestMatchers("/api/auth/**", "/api/share-links/exchange", "/error").permitAll()
                         .anyRequest().authenticated())
                 .oauth2Login(oauth -> oauth
                         // Google is OIDC and bypasses this; it only serves plain OAuth2 providers like GitHub

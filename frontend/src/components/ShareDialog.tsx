@@ -7,6 +7,12 @@ import {
   updateMemberRole,
   type ProjectMember,
 } from "../api/members";
+import {
+  createShareLink,
+  listShareLinks,
+  revokeShareLink,
+  type ShareLink,
+} from "../api/shareLinks";
 
 type Props = {
   projectId: string;
@@ -27,6 +33,10 @@ export default function ShareDialog({ projectId, onClose }: Props) {
   } | null>(null);
   const [memberToRemove, setMemberToRemove] =
     useState<ProjectMember | null>(null);
+  const [shareLinks, setShareLinks] = useState<ShareLink[]>([]);
+  const [linkExpiration, setLinkExpiration] = useState("");
+  const [linkBusy, setLinkBusy] = useState(false);
+  const [linkMessage, setLinkMessage] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -36,8 +46,12 @@ export default function ShareDialog({ projectId, onClose }: Props) {
       setError("");
 
       try {
-        const data = await listMembers(projectId);
+        const [data, links] = await Promise.all([
+          listMembers(projectId),
+          listShareLinks(projectId),
+        ]);
         if (!cancelled) setMembers(data);
+        if (!cancelled) setShareLinks(links);
       } catch {
         if (!cancelled) setError("Could not load project members.");
       } finally {
@@ -51,6 +65,51 @@ export default function ShareDialog({ projectId, onClose }: Props) {
       cancelled = true;
     };
   }, [projectId]);
+
+  async function handleCreateLink() {
+    if (linkBusy) return;
+    setLinkBusy(true);
+    setError("");
+    setLinkMessage("");
+    try {
+      const expiresAt = linkExpiration
+        ? new Date(`${linkExpiration}T23:59:59`).toISOString()
+        : null;
+      const link = await createShareLink(projectId, expiresAt);
+      setShareLinks((current) => [link, ...current]);
+      if (link.token) {
+        await navigator.clipboard?.writeText(
+          `${window.location.origin}/share/${link.token}`,
+        );
+        setLinkMessage("Link created and copied to the clipboard.");
+      }
+      setLinkExpiration("");
+    } catch {
+      setError("Could not create share link.");
+    } finally {
+      setLinkBusy(false);
+    }
+  }
+
+  async function handleRevokeLink(link: ShareLink) {
+    if (linkBusy || !window.confirm("Revoke this share link?")) return;
+    setLinkBusy(true);
+    setError("");
+    try {
+      await revokeShareLink(projectId, link.id);
+      setShareLinks((current) =>
+        current.map((item) =>
+          item.id === link.id
+            ? { ...item, status: "REVOKED", revokedAt: new Date().toISOString() }
+            : item,
+        ),
+      );
+    } catch {
+      setError("Could not revoke share link.");
+    } finally {
+      setLinkBusy(false);
+    }
+  }
 
   async function handleAdd(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -225,6 +284,62 @@ export default function ShareDialog({ projectId, onClose }: Props) {
             {error}
           </p>
         )}
+
+        <div className="mt-5 border-t border-gray-100 pt-4">
+          <h3 className="text-sm font-semibold text-gray-900">Guest viewer links</h3>
+          <p className="mt-1 text-xs text-gray-500">
+            Anyone with an active link can view this project without editing.
+          </p>
+          <div className="mt-3 flex items-end gap-2">
+            <label className="min-w-0 flex-1 text-xs font-medium text-gray-600">
+              Expires (optional)
+              <input
+                type="date"
+                value={linkExpiration}
+                min={new Date().toISOString().slice(0, 10)}
+                onChange={(event) => setLinkExpiration(event.target.value)}
+                disabled={linkBusy}
+                className="mt-1.5 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => void handleCreateLink()}
+              disabled={linkBusy}
+              className="rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+            >
+              Create link
+            </button>
+          </div>
+          {linkMessage && (
+            <p role="status" className="mt-2 text-xs text-green-700">
+              {linkMessage}
+            </p>
+          )}
+          <ul className="mt-3 space-y-2">
+            {shareLinks.map((link) => (
+              <li key={link.id} className="flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-2 text-xs">
+                <span className="min-w-0 flex-1 truncate">
+                  {link.status === "ACTIVE"
+                    ? link.expiresAt
+                      ? `Active until ${new Date(link.expiresAt).toLocaleDateString()}`
+                      : "Active · no expiration"
+                    : link.status.toLowerCase()}
+                </span>
+                {link.status === "ACTIVE" && (
+                  <button
+                    type="button"
+                    onClick={() => void handleRevokeLink(link)}
+                    disabled={linkBusy}
+                    className="font-medium text-red-600 hover:underline disabled:opacity-50"
+                  >
+                    Revoke
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
 
         <div className="mt-5">
           <h3 className="text-sm font-semibold text-gray-900">

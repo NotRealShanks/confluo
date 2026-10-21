@@ -22,6 +22,7 @@ import com.github.notrealshanks.confluobackend.dto.LiveblocksTokenResponse;
 import com.github.notrealshanks.confluobackend.model.Role;
 import com.github.notrealshanks.confluobackend.model.User;
 import com.github.notrealshanks.confluobackend.repository.UserRepository;
+import com.github.notrealshanks.confluobackend.security.GuestPrincipal;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -75,11 +76,32 @@ public class LiveblocksAuthService {
             userInfo.put("avatar", avatar);
         }
 
+        return requestToken(Map.of(
+                "userId", userId,
+                "userInfo", userInfo,
+                "permissions", Map.of(room, permissionsFor(role))));
+    }
+
+    public LiveblocksTokenResponse authorizeGuest(GuestPrincipal guest, String room) {
+        if (!guest.projectId().equals(room)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found");
+        }
+        return authorizeWithLiveblocks("guest:" + guest.guestId(), "Guest viewer", null, room, Role.VIEWER);
+    }
+
+    private LiveblocksTokenResponse authorizeWithLiveblocks(
+            String userId, String name, String avatar, String room, Role role) {
+        Map<String, Object> userInfo = new LinkedHashMap<>();
+        userInfo.put("name", name);
+        if (avatar != null && !avatar.isBlank()) userInfo.put("avatar", avatar);
         Map<String, Object> body = Map.of(
                 "userId", userId,
                 "userInfo", userInfo,
                 "permissions", Map.of(room, permissionsFor(role)));
+        return requestToken(body);
+    }
 
+    private LiveblocksTokenResponse requestToken(Map<String, Object> body) {
         Map<String, Object> response;
         try {
             response = restClient.post()
@@ -87,8 +109,7 @@ public class LiveblocksAuthService {
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body)
                     .retrieve()
-                    .body(new ParameterizedTypeReference<Map<String, Object>>() {
-                    });
+                    .body(new ParameterizedTypeReference<Map<String, Object>>() {});
         } catch (RestClientResponseException e) {
             log.warn("Liveblocks authorize-user failed with status {}", e.getStatusCode().value());
             throw badGateway();
@@ -96,11 +117,8 @@ public class LiveblocksAuthService {
             log.warn("Liveblocks authorize-user failed: {}", e.getClass().getSimpleName());
             throw badGateway();
         }
-
         Object token = response == null ? null : response.get("token");
-        if (!(token instanceof String value) || value.isBlank()) {
-            throw badGateway();
-        }
+        if (!(token instanceof String value) || value.isBlank()) throw badGateway();
         return new LiveblocksTokenResponse(value);
     }
 
