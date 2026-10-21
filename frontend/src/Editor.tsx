@@ -4,14 +4,22 @@ import type { editor } from "monaco-editor";
 import { MonacoBinding } from "y-monaco";
 import type { Awareness } from "y-protocols/awareness";
 import type { Transaction, YTextEvent } from "yjs";
+import type * as Y from "yjs";
 import { useRoom, useSelf } from "@liveblocks/react/suspense";
 import { colorFor } from "./lib/color";
 import { safeCursorColor, safeCursorName } from "./lib/cursorCss";
 import { getYjsProviderForRoom } from "@liveblocks/yjs";
+import { getFileText } from "./workspace/ops";
 
 type UserState = { name: string; color: string; showName?: boolean };
 
-export default function Editor() {
+type EditorProps = {
+  doc?: Y.Doc;
+  fileId?: string | null;
+  workspaceReady?: boolean;
+};
+
+export default function Editor({ doc, fileId, workspaceReady = true }: EditorProps) {
   const room = useRoom();
   // Identity and permission come from the signed token, not from the client
   const name = useSelf((me) => me.info.name);
@@ -24,8 +32,10 @@ export default function Editor() {
   useEffect(() => {
     if (!editorInstance) return;
     const yProvider = getYjsProviderForRoom(room);
-    const yDoc = yProvider.getYDoc();
-    const yText = yDoc.getText("monaco");
+    if (!workspaceReady) return;
+    const yDoc = doc ?? yProvider.getYDoc();
+    const yText = fileId ? getFileText(yDoc, fileId) : yDoc.getText("monaco");
+    if (!yText) return;
     const awareness = yProvider.awareness as unknown as Awareness;
 
     // Initialize local user in awareness with name/color (showName starts false)
@@ -45,13 +55,15 @@ export default function Editor() {
     return () => {
       binding.destroy();
     };
-  }, [editorInstance, room, name, color]);
+  }, [doc, editorInstance, fileId, room, name, color, workspaceReady]);
 
   // Show the name tag on this user's own edits and selections, hide after 2s
   useEffect(() => {
     if (!editorInstance || !monacoInstance) return;
     const yProvider = getYjsProviderForRoom(room);
-    const yText = yProvider.getYDoc().getText("monaco");
+    const yDoc = doc ?? yProvider.getYDoc();
+    const yText = fileId ? getFileText(yDoc, fileId) : yDoc.getText("monaco");
+    if (!yText) return;
     const awareness = yProvider.awareness as unknown as Awareness;
     let timeout: ReturnType<typeof setTimeout>;
 
@@ -87,7 +99,7 @@ export default function Editor() {
       dispSelect.dispose();
       clearTimeout(timeout);
     };
-  }, [editorInstance, monacoInstance, room, name, color]);
+  }, [doc, editorInstance, fileId, monacoInstance, room, name, color, workspaceReady]);
 
   // Inject dynamic CSS for each user's cursor (color and name)
   useEffect(() => {

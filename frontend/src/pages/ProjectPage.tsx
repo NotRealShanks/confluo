@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
+import { getYjsProviderForRoom } from "@liveblocks/yjs";
 import { ApiError } from "../api/client";
 import Editor from "../Editor";
 import Presence from "../Presence";
@@ -9,6 +10,43 @@ import RoleBadge from "../components/RoleBadge";
 import { RoomErrorBoundary } from "../components/RoomErrorBoundary";
 import ShareDialog from "../components/ShareDialog";
 import { useProject } from "../projects/hooks";
+import WorkspaceExplorer from "../workspace/WorkspaceExplorer";
+import { ensureWorkspace } from "../workspace/ops";
+import { useRoom } from "@liveblocks/react/suspense";
+
+function CollaborativeWorkspace() {
+  const room = useRoom();
+  const provider = getYjsProviderForRoom(room);
+  const doc = provider.getYDoc();
+  const [ready, setReady] = useState(provider.synced);
+  const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onSynced = (synced: boolean) => {
+      if (!synced) {
+        setReady(false);
+        return;
+      }
+      ensureWorkspace(doc);
+      setReady(true);
+    };
+    provider.on("synced", onSynced);
+    if (provider.synced) onSynced(true);
+    return () => provider.off("synced", onSynced);
+  }, [doc, provider]);
+
+  return (
+    <div className="grid gap-3 lg:grid-cols-[15rem_minmax(0,1fr)]">
+      <WorkspaceExplorer
+        doc={doc}
+        ready={ready}
+        selectedFileId={selectedFileId}
+        onSelectFile={(id) => setSelectedFileId(id || null)}
+      />
+      <Editor doc={doc} fileId={selectedFileId} workspaceReady={ready} />
+    </div>
+  );
+}
 
 function ProjectView({ id }: { id: string }) {
   const { state, reload } = useProject(id);
@@ -65,7 +103,7 @@ function ProjectView({ id }: { id: string }) {
         <RoomErrorBoundary>
           <Room projectId={project.id}>
             <Presence />
-            <Editor />
+            <CollaborativeWorkspace />
           </Room>
         </RoomErrorBoundary>
       </div>

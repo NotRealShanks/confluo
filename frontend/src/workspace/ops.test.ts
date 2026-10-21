@@ -208,6 +208,20 @@ describe("ensureWorkspace", () => {
     expect(snapshot(a).nodes.size).toBe(1);
     expect(snapshot(b).nodes.size).toBe(1);
   });
+
+  it("does not migrate stale legacy text after a remote workspace arrives", () => {
+    const remote = new Y.Doc();
+    const remoteFile = idOf(createNode(remote, { type: "file", name: "remote.js", parentId: null, content: "remote" }));
+    const local = new Y.Doc();
+    local.getText("monaco").insert(0, "stale local text");
+
+    sync(remote, local);
+
+    expect(ensureWorkspace(local)).toBe(false);
+    expect(snapshot(local).nodes.has(remoteFile)).toBe(true);
+    expect(getFileText(local, remoteFile)?.toString()).toBe("remote");
+    expect(snapshot(local).nodes.size).toBe(1);
+  });
 });
 
 describe("a hostile collaborator writing straight into the shared document", () => {
