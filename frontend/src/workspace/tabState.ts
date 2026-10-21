@@ -6,7 +6,8 @@ export type TabState = {
 export type TabAction =
   | { type: "select"; fileId: string }
   | { type: "close"; fileId: string }
-  | { type: "remove"; fileId: string };
+  | { type: "remove"; fileId: string }
+  | { type: "reconcile"; validFileIds: string[] };
 
 export const initialTabState: TabState = {
   openFileIds: [],
@@ -20,6 +21,22 @@ export function tabReducer(state: TabState, action: TabAction): TabState {
         ? state.openFileIds
         : [...state.openFileIds, action.fileId],
       selectedFileId: action.fileId,
+    };
+  }
+
+  if (action.type === "reconcile") {
+    const validIds = new Set(action.validFileIds);
+    const openFileIds = state.openFileIds.filter((id) => validIds.has(id));
+    if (openFileIds.length === state.openFileIds.length) return state;
+
+    if (state.selectedFileId && validIds.has(state.selectedFileId)) {
+      return { openFileIds, selectedFileId: state.selectedFileId };
+    }
+
+    const removedIndex = state.openFileIds.indexOf(state.selectedFileId ?? "");
+    return {
+      openFileIds,
+      selectedFileId: openFileIds[removedIndex] ?? openFileIds[removedIndex - 1] ?? null,
     };
   }
 

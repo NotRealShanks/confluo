@@ -14,4 +14,19 @@ describe("tabReducer", () => {
       selectedFileId: "three",
     });
   });
+
+  it("removes remotely deleted files and selects the next valid tab", () => {
+    const state: TabState = { openFileIds: ["one", "two", "three"], selectedFileId: "two" };
+    expect(tabReducer(state, { type: "reconcile", validFileIds: ["one", "three"] })).toEqual({
+      openFileIds: ["one", "three"],
+      selectedFileId: "three",
+    });
+  });
+
+  it("clears the editor selection when the last open file is deleted", () => {
+    expect(tabReducer(
+      { openFileIds: ["one"], selectedFileId: "one" },
+      { type: "reconcile", validFileIds: [] },
+    )).toEqual({ openFileIds: [], selectedFileId: null });
+  });
 });

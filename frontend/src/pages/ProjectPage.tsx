@@ -86,8 +86,23 @@ function CollaborativeWorkspace() {
     return () => provider.off("synced", onSynced);
   }, [doc, provider]);
 
+  useEffect(() => {
+    const reconcileTabs = () => {
+      const validFileIds = Array.from(snapshot(doc).nodes.values())
+        .filter((node) => node.type === "file")
+        .map((node) => node.id);
+      dispatchTabs({ type: "reconcile", validFileIds });
+    };
+    doc.on("update", reconcileTabs);
+    return () => doc.off("update", reconcileTabs);
+  }, [doc]);
+
   const selectFile = (id: string) => {
-    if (id) dispatchTabs({ type: "select", fileId: id });
+    if (id) {
+      dispatchTabs({ type: "select", fileId: id });
+    } else if (selectedFileId) {
+      dispatchTabs({ type: "remove", fileId: selectedFileId });
+    }
   };
 
   return (
