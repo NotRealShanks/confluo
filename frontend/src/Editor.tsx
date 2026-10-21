@@ -4,14 +4,22 @@ import type { editor } from "monaco-editor";
 import { MonacoBinding } from "y-monaco";
 import type { Awareness } from "y-protocols/awareness";
 import type { Transaction, YTextEvent } from "yjs";
+import type * as Y from "yjs";
 import { useRoom, useSelf } from "@liveblocks/react/suspense";
 import { colorFor } from "./lib/color";
 import { safeCursorColor, safeCursorName } from "./lib/cursorCss";
 import { getYjsProviderForRoom } from "@liveblocks/yjs";
+import { getFileText } from "./workspace/ops";
 
 type UserState = { name: string; color: string; showName?: boolean };
 
-export default function Editor() {
+type EditorProps = {
+  doc?: Y.Doc;
+  fileId?: string | null;
+  workspaceReady?: boolean;
+};
+
+export default function Editor({ doc, fileId, workspaceReady = true }: EditorProps) {
   const room = useRoom();
   // Identity and permission come from the signed token, not from the client
   const name = useSelf((me) => me.info.name);
@@ -19,13 +27,16 @@ export default function Editor() {
   const readOnly = !useSelf((me) => me.canWrite);
   const [editorInstance, setEditorInstance] = useState<editor.IStandaloneCodeEditor>();
   const [monacoInstance, setMonacoInstance] = useState<Monaco>();
+  const [mountedFileId, setMountedFileId] = useState<string | null | undefined>(fileId);
 
   // Set up Yjs doc and MonacoBinding (one-time on editor mount)
   useEffect(() => {
-    if (!editorInstance) return;
+    if (!editorInstance || mountedFileId !== fileId) return;
     const yProvider = getYjsProviderForRoom(room);
-    const yDoc = yProvider.getYDoc();
-    const yText = yDoc.getText("monaco");
+    if (!workspaceReady) return;
+    const yDoc = doc ?? yProvider.getYDoc();
+    const yText = fileId ? getFileText(yDoc, fileId) : yDoc.getText("monaco");
+    if (!yText) return;
     const awareness = yProvider.awareness as unknown as Awareness;
 
     // Initialize local user in awareness with name/color (showName starts false)
@@ -45,13 +56,15 @@ export default function Editor() {
     return () => {
       binding.destroy();
     };
-  }, [editorInstance, room, name, color]);
+  }, [doc, editorInstance, fileId, mountedFileId, room, name, color, workspaceReady]);
 
   // Show the name tag on this user's own edits and selections, hide after 2s
   useEffect(() => {
-    if (!editorInstance || !monacoInstance) return;
+    if (!editorInstance || !monacoInstance || mountedFileId !== fileId) return;
     const yProvider = getYjsProviderForRoom(room);
-    const yText = yProvider.getYDoc().getText("monaco");
+    const yDoc = doc ?? yProvider.getYDoc();
+    const yText = fileId ? getFileText(yDoc, fileId) : yDoc.getText("monaco");
+    if (!yText) return;
     const awareness = yProvider.awareness as unknown as Awareness;
     let timeout: ReturnType<typeof setTimeout>;
 
@@ -87,13 +100,17 @@ export default function Editor() {
       dispSelect.dispose();
       clearTimeout(timeout);
     };
-  }, [editorInstance, monacoInstance, room, name, color]);
+  }, [doc, editorInstance, fileId, mountedFileId, monacoInstance, room, name, color, workspaceReady]);
 
   // Inject dynamic CSS for each user's cursor (color and name)
   useEffect(() => {
-    if (!editorInstance) return;
     const yProvider = getYjsProviderForRoom(room);
     const awareness = yProvider.awareness as unknown as Awareness;
+    awareness.setLocalStateField("user", {
+      name,
+      color,
+      showName: false,
+    } satisfies UserState);
     const styleEl = document.createElement("style");
     document.head.appendChild(styleEl);
 
@@ -126,22 +143,41 @@ export default function Editor() {
       awareness.off("change", updateStyles);
       styleEl.remove();
     };
-  }, [editorInstance, room]);
+  }, [color, name, room]);
 
   return (
-    <div>
+    <div className="ide-editor">
       {readOnly && (
-        <p className="mb-2 rounded-lg bg-amber-50 p-2 text-sm text-amber-800">You have view-only access to this project.</p>
+        <p className="ide-readonly-notice">You have view-only access to this project.</p>
       )}
-      <MonacoEditor
-        height="70vh"
-        defaultLanguage="javascript"
-        options={{ readOnly, domReadOnly: readOnly }}
-        onMount={(editor, monaco) => {
-          setEditorInstance(editor);
-          setMonacoInstance(monaco);
-        }}
-      />
+      {fileId && workspaceReady ? (
+        <div className="ide-monaco">
+          <MonacoEditor
+            key={fileId}
+            height="100%"
+            defaultLanguage="javascript"
+            defaultValue=""
+            path={`workspace/${fileId}`}
+            options={{
+              readOnly,
+              domReadOnly: readOnly,
+              minimap: { enabled: false },
+              padding: { top: 12 },
+              scrollBeyondLastLine: false,
+            }}
+            onMount={(editor, monaco) => {
+              setMountedFileId(fileId);
+              setEditorInstance(editor);
+              setMonacoInstance(monaco);
+            }}
+          />
+        </div>
+      ) : (
+        <div className="ide-empty-editor">
+          <strong>{workspaceReady ? "No file selected" : "Synchronizing workspace…"}</strong>
+          <span>Select a file from Explorer to start editing.</span>
+        </div>
+      )}
     </div>
   );
 }
