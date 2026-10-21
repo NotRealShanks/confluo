@@ -42,12 +42,13 @@ public class JwtService {
                 .compact();
     }
 
-    public String generateGuestToken(String guestId, String projectId) {
+    public String generateGuestToken(String guestId, String projectId, String shareLinkId) {
         Date now = new Date();
         return Jwts.builder()
                 .subject(guestId)
                 .claim("kind", "guest")
                 .claim("projectId", projectId)
+                .claim("shareLinkId", shareLinkId)
                 .issuedAt(now)
                 .expiration(new Date(now.getTime() + guestExpirationMs))
                 .signWith(key)
@@ -71,17 +72,19 @@ public class JwtService {
             }
             if ("guest".equals(kind)) {
                 String projectId = claims.get("projectId", String.class);
+                String shareLinkId = claims.get("shareLinkId", String.class);
                 return projectId == null || projectId.isBlank()
+                        || shareLinkId == null || shareLinkId.isBlank()
                         ? null
-                        : new TokenClaims(subject, true, projectId);
+                        : new TokenClaims(subject, true, projectId, shareLinkId);
             }
-            return new TokenClaims(subject, false, null);
+            return new TokenClaims(subject, false, null, null);
         } catch (JwtException | IllegalArgumentException e) {
             return null;
         }
     }
 
-    public record TokenClaims(String subject, boolean guest, String projectId) {
+    public record TokenClaims(String subject, boolean guest, String projectId, String shareLinkId) {
     }
 
     // Kept for callers that only need registered-user extraction.

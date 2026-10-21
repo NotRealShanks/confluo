@@ -24,6 +24,7 @@ import com.github.notrealshanks.confluobackend.security.GitHubUserService;
 import com.github.notrealshanks.confluobackend.security.JwtAuthFilter;
 import com.github.notrealshanks.confluobackend.security.JwtService;
 import com.github.notrealshanks.confluobackend.security.OAuth2LoginHandler;
+import com.github.notrealshanks.confluobackend.repository.ShareLinkRepository;
 
 @Configuration
 @EnableWebSecurity
@@ -33,6 +34,7 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             JwtService jwtService,
+            ShareLinkRepository shareLinkRepository,
             OAuth2LoginHandler oauthHandler,
             GitHubUserService gitHubUserService) throws Exception {
         http
@@ -50,7 +52,7 @@ public class SecurityConfig {
                         .userInfoEndpoint(info -> info.userService(gitHubUserService))
                         .successHandler(oauthHandler)
                         .failureHandler(oauthHandler))
-                .addFilterBefore(new JwtAuthFilter(jwtService), UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(new JwtAuthFilter(jwtService, shareLinkRepository), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

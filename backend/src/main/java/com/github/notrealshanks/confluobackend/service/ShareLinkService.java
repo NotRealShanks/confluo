@@ -80,6 +80,8 @@ public class ShareLinkService {
     }
 
     public GuestSessionResponse exchange(String rawToken, HttpServletRequest request) {
+        // Use the socket peer address. Forwarded headers are caller-controlled unless
+        // proxy trust is explicitly configured by the deployment.
         String clientKey = request.getRemoteAddr() == null ? "unknown" : request.getRemoteAddr();
         rateLimitService.check("guest-exchange-ip:" + clientKey);
         String tokenHash = hash(rawToken);
@@ -93,7 +95,7 @@ public class ShareLinkService {
         Project project = projectService.requireProject(link.getProjectId());
         String guestId = UUID.randomUUID().toString();
         return new GuestSessionResponse(
-                jwtService.generateGuestToken(guestId, project.getId()),
+                jwtService.generateGuestToken(guestId, project.getId(), link.getId()),
                 new ProjectResponse(project.getId(), project.getTitle(), Role.VIEWER,
                         project.getCreatedAt(), project.getUpdatedAt()));
     }
