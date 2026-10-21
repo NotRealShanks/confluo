@@ -73,11 +73,12 @@ export function CollaborativeWorkspace({ canInitialize = true }: { canInitialize
   const [{ selectedFileId, openFileIds }, dispatchTabs] = useReducer(tabReducer, initialTabState);
   const [panelOpen, setPanelOpen] = useState(false);
   const [explorerOpen, setExplorerOpen] = useState(true);
+  const [createFileRequest, setCreateFileRequest] = useState(0);
   const view = snapshot(doc);
 
   useEffect(() => {
     const onSynced = (synced: boolean) => {
-      if (!synced) { setReady(false); return; }
+      if (!synced) return;
       ensureWorkspaceIfAllowed(doc, canInitialize);
       setReady(true);
     };
@@ -109,7 +110,13 @@ export function CollaborativeWorkspace({ canInitialize = true }: { canInitialize
     <div className="ide-workspace">
       <ActivityBar explorerOpen={explorerOpen} onToggleExplorer={() => setExplorerOpen((open) => !open)} />
       {explorerOpen && <aside className="ide-sidebar">
-        <WorkspaceExplorer doc={doc} ready={ready} selectedFileId={selectedFileId} onSelectFile={selectFile} />
+        <WorkspaceExplorer
+          doc={doc}
+          ready={ready}
+          selectedFileId={selectedFileId}
+          onSelectFile={selectFile}
+          createFileRequest={createFileRequest}
+        />
       </aside>}
       <main className="ide-main">
         <div className="ide-tabs" role="tablist" aria-label="Open files">
@@ -124,7 +131,13 @@ export function CollaborativeWorkspace({ canInitialize = true }: { canInitialize
           {openFileIds.length === 0 && <span className="ide-tabs-empty">No files open</span>}
         </div>
         <div className="ide-editor-area">
-          <Editor doc={doc} fileId={selectedFileId} workspaceReady={ready} />
+          <Editor
+            doc={doc}
+            fileId={selectedFileId}
+            workspaceReady={ready}
+            emptyWorkspace={view.nodes.size === 0}
+            onCreateFile={canInitialize ? () => setCreateFileRequest((request) => request + 1) : undefined}
+          />
         </div>
         <BottomPanel open={panelOpen} onToggle={() => setPanelOpen((open) => !open)} />
       </main>

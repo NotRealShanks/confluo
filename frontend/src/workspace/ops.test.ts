@@ -213,6 +213,17 @@ describe("ensureWorkspace", () => {
     expect(snapshot(doc).nodes.size).toBe(1);
   });
 
+  it("keeps the workspace empty after deleting its only file", () => {
+    const doc = new Y.Doc();
+    const file = idOf(createNode(doc, { type: "file", name: "main.js", parentId: null }));
+
+    ensureWorkspace(doc);
+    expect(deleteNode(doc, file).ok).toBe(true);
+    expect(snapshot(doc).nodes.size).toBe(0);
+    expect(ensureWorkspace(doc)).toBe(false);
+    expect(snapshot(doc).nodes.size).toBe(0);
+  });
+
   it("converges to a single main file when two people open a new project together", () => {
     const a = new Y.Doc();
     const b = new Y.Doc();
@@ -222,6 +233,22 @@ describe("ensureWorkspace", () => {
 
     expect(snapshot(a).nodes.size).toBe(1);
     expect(snapshot(b).nodes.size).toBe(1);
+  });
+
+  it("does not reinitialize after a reconnect-style sync following deletion", () => {
+    const owner = new Y.Doc();
+    const editor = new Y.Doc();
+    ensureWorkspace(owner);
+    sync(owner, editor);
+
+    const file = Array.from(snapshot(owner).nodes.keys())[0];
+    deleteNode(owner, file);
+    sync(owner, editor);
+
+    expect(snapshot(owner).nodes.size).toBe(0);
+    expect(snapshot(editor).nodes.size).toBe(0);
+    expect(ensureWorkspace(editor)).toBe(false);
+    expect(snapshot(editor).nodes.size).toBe(0);
   });
 
   it("does not migrate stale legacy text after a remote workspace arrives", () => {

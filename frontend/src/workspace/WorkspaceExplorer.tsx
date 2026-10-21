@@ -25,6 +25,7 @@ type WorkspaceExplorerProps = {
   ready: boolean;
   selectedFileId: string | null;
   onSelectFile: (id: string) => void;
+  createFileRequest?: number;
 };
 
 type ContextMenu = { x: number; y: number; node: TreeNode | null };
@@ -34,11 +35,16 @@ export default function WorkspaceExplorer({
   ready,
   selectedFileId,
   onSelectFile,
+  createFileRequest = 0,
 }: WorkspaceExplorerProps) {
   const canWrite = useSelf((me) => me.canWrite);
   const [revision, setRevision] = useState(0);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
+  const [newFileParentId, setNewFileParentId] = useState<string | null | undefined>(undefined);
+  const [newFileName, setNewFileName] = useState("");
+  const [newFileError, setNewFileError] = useState("");
+  const newFileInputRef = useRef<HTMLInputElement>(null);
   const explorerRef = useRef<HTMLElement>(null);
   const view = snapshot(doc);
 
@@ -68,7 +74,50 @@ export default function WorkspaceExplorer({
     if (!result.ok) window.alert(result.error);
   };
 
+  useEffect(() => {
+    if (newFileParentId !== undefined) {
+      newFileInputRef.current?.focus();
+    }
+  }, [newFileParentId]);
+
+  const beginNewFile = (parentId: string | null) => {
+    setContextMenu(null);
+    setNewFileName("");
+    setNewFileError("");
+    setNewFileParentId(parentId);
+    if (parentId) setExpanded((current) => new Set(current).add(parentId));
+  };
+
+  useEffect(() => {
+    if (createFileRequest > 0) beginNewFile(null);
+  }, [createFileRequest]);
+
+  const cancelNewFile = () => {
+    setNewFileParentId(undefined);
+    setNewFileName("");
+    setNewFileError("");
+  };
+
+  const confirmNewFile = () => {
+    const result = createNode(doc, {
+      type: "file",
+      name: newFileName,
+      parentId: newFileParentId ?? null,
+    });
+    if (!result.ok) {
+      setNewFileError(result.error);
+      return;
+    }
+    onSelectFile(result.value);
+    if (newFileParentId) setExpanded((current) => new Set(current).add(newFileParentId));
+    cancelNewFile();
+  };
+
   const create = (type: "file" | "folder", parentId: string | null) => {
+    if (type === "file") {
+      beginNewFile(parentId);
+      return;
+    }
     const name = window.prompt(`Name for new ${type}`);
     if (name === null) return;
     const result = createNode(doc, { type, name, parentId });
@@ -76,7 +125,6 @@ export default function WorkspaceExplorer({
       window.alert(result.error);
       return;
     }
-    if (type === "file") onSelectFile(result.value);
     if (parentId) setExpanded((current) => new Set(current).add(parentId));
   };
 
@@ -130,8 +178,8 @@ export default function WorkspaceExplorer({
     }
   };
 
-  const renderNodes = (parentId: string | null, depth: number): ReactElement[] =>
-    (view.children.get(parentId) ?? []).flatMap((node) => {
+  const renderNodes = (parentId: string | null, depth: number): ReactElement[] => {
+    const nodes = (view.children.get(parentId) ?? []).flatMap((node) => {
       const children = node.type === "folder" && expanded.has(node.id)
         ? renderNodes(node.id, depth + 1)
         : [];
@@ -180,6 +228,33 @@ export default function WorkspaceExplorer({
         </li>,
       ];
     });
+    if (newFileParentId !== undefined && newFileParentId === parentId) {
+      nodes.unshift(
+        <li key="new-file" className="ide-new-file-entry" style={{ paddingLeft: `${depth * 12 + 4}px` }}>
+          <FileCode2 size={15} />
+          <div className="ide-new-file-editor">
+            <input
+              ref={newFileInputRef}
+              aria-label="New file name"
+              value={newFileName}
+              onChange={(event) => {
+                setNewFileName(event.target.value);
+                setNewFileError("");
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") confirmNewFile();
+                if (event.key === "Escape") cancelNewFile();
+              }}
+              placeholder="filename.ext"
+              className="ide-new-file-input"
+            />
+            {newFileError && <span className="ide-new-file-error">{newFileError}</span>}
+          </div>
+        </li>,
+      );
+    }
+    return nodes;
+  };
 
   return (
     <aside ref={explorerRef} className="ide-explorer" aria-label="Workspace files">
@@ -187,7 +262,7 @@ export default function WorkspaceExplorer({
         <h2>EXPLORER</h2>
         {canWrite && (
           <div className="ide-explorer-actions">
-            <button type="button" title="New file" aria-label="New file" onClick={() => create("file", null)}><Plus size={16} /></button>
+            <button type="button" title="New file" aria-label="New file" onClick={() => beginNewFile(null)}><Plus size={16} /></button>
             <button type="button" title="New folder" aria-label="New folder" onClick={() => create("folder", null)}><FolderPlus size={16} /></button>
             <button type="button" title="Refresh" aria-label="Refresh" onClick={() => setRevision((value) => value + 1)}><RefreshCw size={15} /></button>
             <button type="button" title="Collapse all" aria-label="Collapse all" onClick={() => setExpanded(new Set())}><ChevronsDownUp size={15} /></button>
@@ -204,7 +279,9 @@ export default function WorkspaceExplorer({
             ...getContextMenuPosition(event.clientX, event.clientY, window.innerWidth, window.innerHeight),
             node: null,
           });
-        }}>{renderNodes(null, 0)}</ul>
+        }}>
+          {renderNodes(null, 0)}
+        </ul>
       )}
       {view.truncated && <p className="ide-explorer-message warning">Some items are hidden because this workspace is at its limit.</p>}
       {contextMenu && (
@@ -212,8 +289,7 @@ export default function WorkspaceExplorer({
           {canWrite && (
             <>
               <button type="button" role="menuitem" onClick={() => {
-                setContextMenu(null);
-                create("file", contextMenu.node?.type === "folder" ? contextMenu.node.id : null);
+                beginNewFile(contextMenu.node?.type === "folder" ? contextMenu.node.id : null);
               }}><Plus size={14} /> New File</button>
               <button type="button" role="menuitem" onClick={() => {
                 setContextMenu(null);
