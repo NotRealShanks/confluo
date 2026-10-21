@@ -103,9 +103,13 @@ export default function Editor({ doc, fileId, workspaceReady = true }: EditorPro
 
   // Inject dynamic CSS for each user's cursor (color and name)
   useEffect(() => {
-    if (!editorInstance) return;
     const yProvider = getYjsProviderForRoom(room);
     const awareness = yProvider.awareness as unknown as Awareness;
+    awareness.setLocalStateField("user", {
+      name,
+      color,
+      showName: false,
+    } satisfies UserState);
     const styleEl = document.createElement("style");
     document.head.appendChild(styleEl);
 
@@ -138,22 +142,40 @@ export default function Editor({ doc, fileId, workspaceReady = true }: EditorPro
       awareness.off("change", updateStyles);
       styleEl.remove();
     };
-  }, [editorInstance, room]);
+  }, [color, name, room]);
 
   return (
-    <div>
+    <div className="ide-editor">
       {readOnly && (
-        <p className="mb-2 rounded-lg bg-amber-50 p-2 text-sm text-amber-800">You have view-only access to this project.</p>
+        <p className="ide-readonly-notice">You have view-only access to this project.</p>
       )}
-      <MonacoEditor
-        height="70vh"
-        defaultLanguage="javascript"
-        options={{ readOnly, domReadOnly: readOnly }}
-        onMount={(editor, monaco) => {
-          setEditorInstance(editor);
-          setMonacoInstance(monaco);
-        }}
-      />
+      {fileId && workspaceReady ? (
+        <div className="ide-monaco">
+          <MonacoEditor
+            key={fileId}
+            height="100%"
+            defaultLanguage="javascript"
+            defaultValue=""
+            path={`workspace/${fileId}`}
+            options={{
+              readOnly,
+              domReadOnly: readOnly,
+              minimap: { enabled: false },
+              padding: { top: 12 },
+              scrollBeyondLastLine: false,
+            }}
+            onMount={(editor, monaco) => {
+              setEditorInstance(editor);
+              setMonacoInstance(monaco);
+            }}
+          />
+        </div>
+      ) : (
+        <div className="ide-empty-editor">
+          <strong>{workspaceReady ? "No file selected" : "Synchronizing workspace…"}</strong>
+          <span>Select a file from Explorer to start editing.</span>
+        </div>
+      )}
     </div>
   );
 }
