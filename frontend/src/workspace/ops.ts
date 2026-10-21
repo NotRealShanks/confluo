@@ -4,6 +4,7 @@ import { fail, ok, type NodeType, type Result } from "./types";
 
 const TREE_KEY = "tree";
 const CONTENTS_KEY = "contents";
+const WORKSPACE_META_KEY = "workspace";
 const LEGACY_TEXT_KEY = "monaco";
 const DEFAULT_FILE_ID = "default-main";
 
@@ -14,6 +15,10 @@ function treeMap(doc: Y.Doc): Y.Map<unknown> {
 
 function contentsMap(doc: Y.Doc): Y.Map<unknown> {
   return doc.getMap(CONTENTS_KEY);
+}
+
+function workspaceMeta(doc: Y.Doc): Y.Map<unknown> {
+  return doc.getMap(WORKSPACE_META_KEY);
 }
 
 // Everything read from the shared document is untrusted: the id comes from the map key, never from the value
@@ -101,7 +106,12 @@ export function deleteNode(doc: Y.Doc, id: string): Result<null> {
 // Gives a project that has no files yet one main file, keeping any text written before multi-file existed.
 // Call it only after the room has finished syncing. The fixed id makes two simultaneous calls converge.
 export function ensureWorkspace(doc: Y.Doc): boolean {
-  if (treeMap(doc).size > 0) return false;
+  const meta = workspaceMeta(doc);
+  if (meta.get("initialized") === true) return false;
+  if (treeMap(doc).size > 0) {
+    meta.set("initialized", true);
+    return false;
+  }
 
   doc.transact(() => {
     const node = new Y.Map<unknown>();
@@ -110,6 +120,7 @@ export function ensureWorkspace(doc: Y.Doc): boolean {
     node.set("parentId", null);
     treeMap(doc).set(DEFAULT_FILE_ID, node);
     contentsMap(doc).set(DEFAULT_FILE_ID, new Y.Text(doc.getText(LEGACY_TEXT_KEY).toString()));
+    meta.set("initialized", true);
   });
   return true;
 }

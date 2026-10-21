@@ -17,9 +17,17 @@ type EditorProps = {
   doc?: Y.Doc;
   fileId?: string | null;
   workspaceReady?: boolean;
+  emptyWorkspace?: boolean;
+  onCreateFile?: () => void;
 };
 
-export default function Editor({ doc, fileId, workspaceReady = true }: EditorProps) {
+export default function Editor({
+  doc,
+  fileId,
+  workspaceReady = true,
+  emptyWorkspace = false,
+  onCreateFile,
+}: EditorProps) {
   const room = useRoom();
   // Identity and permission come from the signed token, not from the client
   const name = useSelf((me) => me.info.name);
@@ -174,8 +182,13 @@ export default function Editor({ doc, fileId, workspaceReady = true }: EditorPro
         </div>
       ) : (
         <div className="ide-empty-editor">
-          <strong>{workspaceReady ? "No file selected" : "Synchronizing workspace…"}</strong>
-          <span>Select a file from Explorer to start editing.</span>
+          <strong>{workspaceReady && emptyWorkspace ? "No files in this workspace" : workspaceReady ? "No file selected" : "Synchronizing workspace…"}</strong>
+          <span>{workspaceReady && emptyWorkspace ? "Create a file to start editing." : workspaceReady ? "Select a file from Explorer to start editing." : "Your workspace will appear when synchronization finishes."}</span>
+          {workspaceReady && emptyWorkspace && onCreateFile && (
+            <button type="button" className="ide-empty-editor-action" onClick={onCreateFile}>
+              New File
+            </button>
+          )}
         </div>
       )}
     </div>
