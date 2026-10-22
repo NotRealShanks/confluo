@@ -164,12 +164,43 @@ button {
 }
 
 .ide-sidebar {
-  flex: 0 0 252px;
+  flex: 0 0 auto;
+  width: 260px;
   min-width: 190px;
-  max-width: 35vw;
+  max-width: none;
   overflow: auto;
-  border-right: 1px solid #d9dee7;
   background: #f8fafc;
+}
+
+.ide-sidebar-resize-handle {
+  position: relative;
+  z-index: 2;
+  flex: 0 0 8px;
+  cursor: col-resize;
+  background: transparent;
+}
+
+.ide-sidebar-resize-handle::after {
+  position: absolute;
+  inset: 0 3px;
+  content: "";
+  border-right: 1px solid #d9dee7;
+}
+
+.ide-sidebar-resize-handle:hover,
+.ide-sidebar-resize-handle:focus-visible {
+  outline: 0;
+  background: #dbeafe;
+}
+
+.ide-sidebar-resize-handle:focus-visible::after {
+  border-right-color: #2563eb;
+}
+
+.ide-workspace.is-resizing-sidebar,
+.ide-workspace.is-resizing-sidebar * {
+  cursor: col-resize !important;
+  user-select: none;
 }
 
 .ide-explorer {
@@ -630,7 +661,7 @@ button {
 
 @media (max-width: 720px) {
   .ide-sidebar {
-    flex-basis: 210px;
+    width: 210px;
   }
 
   .ide-activity-bar {

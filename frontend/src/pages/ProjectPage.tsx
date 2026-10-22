@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useState } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import { getYjsProviderForRoom } from "@liveblocks/yjs";
 import {
@@ -29,6 +29,12 @@ import { ensureWorkspaceIfAllowed, snapshot } from "../workspace/ops";
 import WorkspaceExplorer from "../workspace/WorkspaceExplorer";
 import { useRoom } from "@liveblocks/react/suspense";
 import { initialTabState, tabReducer } from "../workspace/tabState";
+import {
+  SIDEBAR_DEFAULT_WIDTH,
+  SIDEBAR_STEP,
+  clampSidebarWidth,
+  sidebarWidthBounds,
+} from "./sidebarResize";
 
 type PanelTab = "terminal" | "output" | "problems";
 
@@ -73,8 +79,83 @@ export function CollaborativeWorkspace({ canInitialize = true }: { canInitialize
   const [{ selectedFileId, openFileIds }, dispatchTabs] = useReducer(tabReducer, initialTabState);
   const [panelOpen, setPanelOpen] = useState(false);
   const [explorerOpen, setExplorerOpen] = useState(true);
+  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
+  const [availableWidth, setAvailableWidth] = useState(0);
+  const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const [createFileRequest, setCreateFileRequest] = useState(0);
+  const workspaceRef = useRef<HTMLDivElement>(null);
+  const sidebarRef = useRef<HTMLElement>(null);
+  const resizeCleanupRef = useRef<(() => void) | null>(null);
   const view = snapshot(doc);
+
+  useEffect(() => {
+    const workspace = workspaceRef.current;
+    const sidebar = sidebarRef.current;
+    if (!workspace || !sidebar) return;
+    const updateAvailableWidth = () => {
+      const nextWidth = workspace.clientWidth -
+        (sidebar.getBoundingClientRect().left - workspace.getBoundingClientRect().left);
+      setAvailableWidth(nextWidth);
+      setSidebarWidth((current) => clampSidebarWidth(current, nextWidth));
+    };
+    updateAvailableWidth();
+    const observer = new ResizeObserver(updateAvailableWidth);
+    observer.observe(workspace);
+    return () => observer.disconnect();
+  }, [explorerOpen]);
+
+  const availableSidebarWidth = () => {
+    const workspace = workspaceRef.current;
+    const sidebar = sidebarRef.current;
+    if (!workspace || !sidebar) return 0;
+    return workspace.clientWidth - (sidebar.getBoundingClientRect().left - workspace.getBoundingClientRect().left);
+  };
+
+  const updateSidebarWidth = (width: number) => {
+    const available = availableSidebarWidth();
+    if (available > 0) setSidebarWidth(clampSidebarWidth(width, available));
+  };
+
+  const stopSidebarResize = () => {
+    resizeCleanupRef.current?.();
+    resizeCleanupRef.current = null;
+    setIsResizingSidebar(false);
+  };
+
+  const startSidebarResize = (event: React.PointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    stopSidebarResize();
+    setIsResizingSidebar(true);
+    const onMove = (moveEvent: PointerEvent) => {
+      const sidebar = sidebarRef.current;
+      if (sidebar) updateSidebarWidth(moveEvent.clientX - sidebar.getBoundingClientRect().left);
+    };
+    const onUp = () => stopSidebarResize();
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    resizeCleanupRef.current = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+  };
+
+  useEffect(() => () => {
+    resizeCleanupRef.current?.();
+  }, []);
+
+  const resizeSidebarWithKeyboard = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const bounds = sidebarWidthBounds(availableSidebarWidth());
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      event.preventDefault();
+      updateSidebarWidth(sidebarWidth + (event.key === "ArrowLeft" ? -SIDEBAR_STEP : SIDEBAR_STEP));
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      setSidebarWidth(bounds.min);
+    } else if (event.key === "End") {
+      event.preventDefault();
+      setSidebarWidth(bounds.max);
+    }
+  };
 
   useEffect(() => {
     const onSynced = (synced: boolean) => {
@@ -107,9 +188,9 @@ export function CollaborativeWorkspace({ canInitialize = true }: { canInitialize
   };
 
   return (
-    <div className="ide-workspace">
+    <div ref={workspaceRef} className={`ide-workspace ${isResizingSidebar ? "is-resizing-sidebar" : ""}`}>
       <ActivityBar explorerOpen={explorerOpen} onToggleExplorer={() => setExplorerOpen((open) => !open)} />
-      {explorerOpen && <aside className="ide-sidebar">
+      {explorerOpen && <aside ref={sidebarRef} className="ide-sidebar" style={{ width: `${sidebarWidth}px` }}>
         <WorkspaceExplorer
           doc={doc}
           ready={ready}
@@ -118,6 +199,18 @@ export function CollaborativeWorkspace({ canInitialize = true }: { canInitialize
           createFileRequest={createFileRequest}
         />
       </aside>}
+      {explorerOpen && <div
+        className="ide-sidebar-resize-handle"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize Explorer sidebar"
+        aria-valuemin={sidebarWidthBounds(availableWidth || 800).min}
+        aria-valuemax={sidebarWidthBounds(availableWidth || 800).max}
+        aria-valuenow={sidebarWidth}
+        tabIndex={0}
+        onPointerDown={startSidebarResize}
+        onKeyDown={resizeSidebarWithKeyboard}
+      />}
       <main className="ide-main">
         <div className="ide-tabs" role="tablist" aria-label="Open files">
           {openFileIds.map((id) => {
