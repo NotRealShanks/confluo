@@ -29,6 +29,21 @@ function renderExplorer() {
   return { doc, onSelectFile };
 }
 
+function renderExplorerWithRequest(createFileRequest: number) {
+  const doc = new Y.Doc();
+  const onSelectFile = vi.fn();
+  render(
+    <WorkspaceExplorer
+      doc={doc}
+      ready
+      selectedFileId={null}
+      onSelectFile={onSelectFile}
+      createFileRequest={createFileRequest}
+    />,
+  );
+  return { doc, onSelectFile };
+}
+
 function createFolder(doc: Y.Doc, name: string, parentId: string | null = null) {
   const node = snapshot(doc);
   const folder = node.children.get(parentId)?.find((item) => item.name === name);
@@ -145,5 +160,29 @@ describe("WorkspaceExplorer new file input", () => {
     fireEvent.keyDown(input, { key: "Enter" });
 
     expect(snapshot(doc).children.get(srcId)?.[0].parentId).toBe(srcId);
+  });
+
+  it("creates at the root when no folder is selected", () => {
+    const { doc } = renderExplorerWithRequest(1);
+    const input = screen.getByRole("textbox", { name: "New file name" });
+
+    fireEvent.change(input, { target: { value: "root.js" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    const rootFile = snapshot(doc).children.get(null)?.[0];
+    expect(rootFile?.name).toBe("root.js");
+    expect(rootFile?.parentId).toBeNull();
+  });
+
+  it("does not reopen an existing creation request when the folder selection changes", () => {
+    const { doc } = renderExplorerWithRequest(1);
+    const srcId = createFolder(doc, "src");
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "New file name" }), { key: "Escape" });
+
+    fireEvent.click(screen.getByRole("button", { name: "src" }));
+
+    expect(screen.queryByRole("textbox", { name: "New file name" })).toBeNull();
+    expect(snapshot(doc).nodes.get(srcId)?.type).toBe("folder");
   });
 });

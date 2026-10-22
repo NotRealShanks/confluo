@@ -50,6 +50,7 @@ export default function WorkspaceExplorer({
   const [deleting, setDeleting] = useState(false);
   const [message, setMessage] = useState("");
   const inlineInputRef = useRef<HTMLInputElement>(null);
+  const lastCreateFileRequest = useRef(0);
   const explorerRef = useRef<HTMLElement>(null);
   const view = snapshot(doc);
 
@@ -95,7 +96,10 @@ export default function WorkspaceExplorer({
   };
 
   useEffect(() => {
-    if (createFileRequest > 0) beginNewFile(selectedFolderId);
+    if (createFileRequest > 0 && createFileRequest !== lastCreateFileRequest.current) {
+      lastCreateFileRequest.current = createFileRequest;
+      beginNewFile(selectedFolderId);
+    }
   }, [createFileRequest, selectedFolderId]);
 
   const create = (type: "file" | "folder", parentId: string | null) => {
