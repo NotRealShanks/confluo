@@ -9,6 +9,7 @@ export type AuthContextValue = {
   // Resolves to true when the token produced a signed-in user
   signIn: (token: string) => Promise<boolean>;
   signOut: () => void;
+  updateUser: (user: User) => void;
 };
 
 export const AuthContext = createContext<AuthContextValue | null>(null);

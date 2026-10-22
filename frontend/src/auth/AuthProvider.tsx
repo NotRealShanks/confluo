@@ -47,10 +47,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setStatus("anonymous");
   }, []);
+  const updateUser = useCallback((updated: User) => setUser(updated), []);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ status, user, signIn, signOut }),
-    [status, user, signIn, signOut],
+    () => ({ status, user, signIn, signOut, updateUser }),
+    [status, user, signIn, signOut, updateUser],
   );
 
   return <AuthContext value={value}>{children}</AuthContext>;

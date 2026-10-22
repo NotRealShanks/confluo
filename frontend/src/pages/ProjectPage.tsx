@@ -23,7 +23,7 @@ import { Room } from "../Room";
 import RoleBadge from "../components/RoleBadge";
 import { RoomErrorBoundary } from "../components/RoomErrorBoundary";
 import ShareDialog from "../components/ShareDialog";
-import { useAuth } from "../auth/context";
+import AccountMenu from "../components/AccountMenu";
 import { useProject } from "../projects/hooks";
 import { ensureWorkspaceIfAllowed, snapshot } from "../workspace/ops";
 import WorkspaceExplorer from "../workspace/WorkspaceExplorer";
@@ -295,7 +295,6 @@ export function CollaborativeWorkspace({ projectId, canInitialize = true, canRun
 }
 
 function ProjectHeader({ project }: { project: Project }) {
-  const { user, signOut } = useAuth();
   const [shareOpen, setShareOpen] = useState(false);
 
   return (
@@ -310,8 +309,7 @@ function ProjectHeader({ project }: { project: Project }) {
         <div className="ide-presence"><Presence /></div>
         <RoleBadge role={project.role} />
         {project.role === "OWNER" && <button type="button" className="ide-share-button" onClick={() => setShareOpen(true)}><Share2 size={15} /> Share</button>}
-        {user?.avatarUrl && <img src={user.avatarUrl} alt="" className="ide-avatar" referrerPolicy="no-referrer" />}
-        <button type="button" className="ide-signout" onClick={signOut}>{user?.name ?? "Account"}</button>
+        <AccountMenu compact />
       </header>
       {shareOpen && <ShareDialog projectId={project.id} projectRole={project.role} onClose={() => setShareOpen(false)} />}
     </>

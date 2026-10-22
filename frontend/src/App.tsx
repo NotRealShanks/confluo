@@ -6,6 +6,8 @@ import OAuthCallback from "./pages/OAuthCallback";
 import ProjectPage from "./pages/ProjectPage";
 import Signup from "./pages/Signup";
 import GuestProjectPage from "./pages/GuestProjectPage";
+import ProfilePage from "./pages/ProfilePage";
+import ProfileSettingsPage from "./pages/ProfileSettingsPage";
 
 export default function App() {
   return (
@@ -17,6 +19,8 @@ export default function App() {
       <Route element={<RequireAuth />}>
         <Route index element={<Home />} />
         <Route path="projects/:id" element={<ProjectPage />} />
+        <Route path="profile" element={<ProfilePage />} />
+        <Route path="settings/profile" element={<ProfileSettingsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

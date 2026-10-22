@@ -121,6 +121,22 @@ button {
   border-radius: 50%;
 }
 
+.ide-account-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  padding: 3px 7px 3px 3px;
+  background: #fff;
+  color: #374151;
+  font-size: 12px;
+}
+.ide-account-trigger:hover { background: #f3f4f6; }
+.ide-account-trigger:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+.account-menu-item { display: flex; width: 100%; align-items: center; gap: 9px; padding: 8px 12px; border: 0; background: #fff; color: #374151; text-align: left; font-size: 14px; }
+.account-menu-item:hover, .account-menu-item:focus-visible { background: #f3f4f6; outline: none; }
+
 .ide-workspace {
   display: flex;
   flex: 1;
