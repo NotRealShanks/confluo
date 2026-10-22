@@ -1,10 +1,15 @@
 export type NodeType = "file" | "folder";
+export type FileKind = "text" | "binary";
 
 export type TreeNode = {
   id: string;
   type: NodeType;
   name: string;
   parentId: string | null;
+  kind?: FileKind;
+  assetId?: string;
+  mimeType?: string;
+  size?: number;
 };
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: string };

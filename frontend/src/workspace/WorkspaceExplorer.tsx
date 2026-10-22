@@ -22,10 +22,13 @@ import { getContextMenuPosition } from "./contextMenu";
 import { descendantIds } from "./tree";
 import type { TreeNode } from "./types";
 import { fileIcon } from "./fileIcon";
-import { createZip, importEntry, isTextBuffer, pathForNode, workspaceEntries } from "./fileManagement";
+import { createZip, importBinaryEntry, importEntry, isTextBuffer, nodeForPath, pathForNode } from "./fileManagement";
+import { downloadAsset, uploadAsset } from "../api/assets";
+import { workspaceTextZipEntries } from "./fileManagement";
 
 type WorkspaceExplorerProps = {
   doc: Y.Doc;
+  projectId?: string;
   ready: boolean;
   selectedFileId: string | null;
   onSelectFile: (id: string) => void;
@@ -39,6 +42,7 @@ type InlineOperation =
 
 export default function WorkspaceExplorer({
   doc,
+  projectId,
   ready,
   selectedFileId,
   onSelectFile,
@@ -193,39 +197,97 @@ export default function WorkspaceExplorer({
     setContextMenu(null);
   };
 
-  const download = (node: TreeNode) => {
+  const download = async (node: TreeNode) => {
     if (node.type !== "file") return;
-    const content = getFileText(doc, node.id)?.toString() ?? "";
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(new Blob([content], { type: "text/plain;charset=utf-8" }));
-    link.download = node.name;
-    link.click();
-    URL.revokeObjectURL(link.href);
-    setContextMenu(null);
+    try {
+      if (node.kind === "binary" && (!projectId || !node.assetId)) {
+        throw new Error("This PDF asset is unavailable.");
+      }
+      const content = node.kind === "binary" && node.assetId && projectId
+        ? await downloadAsset(projectId, node.assetId)
+        : new Blob([getFileText(doc, node.id)?.toString() ?? ""], { type: node.mimeType ?? "text/plain;charset=utf-8" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(content);
+      link.download = node.name;
+      link.click();
+      URL.revokeObjectURL(link.href);
+      setContextMenu(null);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not download the file.");
+    }
   };
 
-  const exportProject = () => {
-    const zip = createZip(workspaceEntries(doc));
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(new Blob([zip.buffer as ArrayBuffer], { type: "application/zip" }));
-    link.download = "workspace.zip";
-    link.click();
-    URL.revokeObjectURL(link.href);
-    setMessage("Project exported.");
+  const exportProject = async () => {
+    if (!projectId) {
+      setMessage("Project assets are unavailable.");
+      return;
+    }
+    try {
+      const currentView = snapshot(doc);
+      const entries = [...workspaceTextZipEntries(doc)];
+      for (const node of currentView.nodes.values()) {
+        if (node.type === "file" && node.kind === "binary") {
+          if (!node.assetId) throw new Error(`Asset metadata is missing for "${node.name}".`);
+          const bytes = new Uint8Array(await (await downloadAsset(projectId, node.assetId)).arrayBuffer());
+          entries.push({ path: pathForNode(currentView, node), bytes });
+        }
+      }
+      const zip = createZip(entries);
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(new Blob([zip.buffer as ArrayBuffer], { type: "application/zip" }));
+      link.download = "workspace.zip";
+      link.click();
+      URL.revokeObjectURL(link.href);
+      setMessage("Project exported.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not export the project.");
+    }
   };
 
   const importFiles = async (files: FileList | null) => {
     if (!files || importing) return;
+    if (!projectId) {
+      setMessage("Project assets are unavailable.");
+      return;
+    }
     setImporting(true);
     let imported = 0;
     try {
       for (const file of Array.from(files)) {
+        const path = file.webkitRelativePath || file.name;
         const buffer = await file.arrayBuffer();
-        if (!isTextBuffer(buffer)) {
-          setMessage(`Skipped binary file "${file.name}". Binary storage is not supported yet.`);
+        const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+        if (isPdf || !isTextBuffer(buffer)) {
+          if (!isPdf) {
+            setMessage(`Unsupported binary file "${file.name}". Only PDF assets are supported.`);
+            continue;
+          }
+          let importPath = path;
+          let overwrite = false;
+          if (nodeForPath(doc, importPath)) {
+            const choice = window.prompt(
+              `Duplicate file: ${importPath}\nType overwrite, skip, or rename.`,
+              "skip",
+            )?.trim().toLowerCase();
+            if (choice === "skip" || !choice) continue;
+            if (choice === "overwrite") overwrite = true;
+            if (choice === "rename") {
+              const renamed = window.prompt("Enter a new relative path:", `${importPath}.copy`);
+              if (!renamed) continue;
+              importPath = renamed;
+            }
+          }
+          const uploaded = await uploadAsset(projectId, file);
+          const result = importBinaryEntry(doc, {
+            path: importPath,
+            bytes: new Uint8Array(buffer),
+            mimeType: file.type || "application/pdf",
+            assetId: uploaded.assetId,
+          }, overwrite);
+          if (result.ok) imported++;
+          else setMessage(result.error);
           continue;
         }
-        const path = file.webkitRelativePath || file.name;
         const result = importEntry(doc, {
           path,
           content: new TextDecoder("utf-8").decode(buffer),
@@ -395,7 +457,7 @@ export default function WorkspaceExplorer({
             <button type="button" title="Collapse all" aria-label="Collapse all" onClick={() => setExpanded(new Set())}><ChevronsDownUp size={15} /></button>
             <button type="button" title="Import files" aria-label="Import files" onClick={() => importFilesRef.current?.click()} disabled={importing}><Upload size={15} /></button>
             <button type="button" title="Import folder" aria-label="Import folder" onClick={() => importFolderRef.current?.click()} disabled={importing}><Folder size={15} /></button>
-            <button type="button" title="Export project" aria-label="Export project" onClick={exportProject}><FileArchive size={15} /></button>
+            <button type="button" title="Export project" aria-label="Export project" onClick={() => void exportProject()}><FileArchive size={15} /></button>
           </div>
         )}
       </div>
@@ -455,7 +517,7 @@ export default function WorkspaceExplorer({
               <div className="ide-menu-divider" />
               <button type="button" role="menuitem" onClick={() => copyPath(contextMenu.node!)}><Copy size={14} /> Copy Path</button>
               <button type="button" role="menuitem" onClick={() => copyPath(contextMenu.node!, true)}><Copy size={14} /> Copy Relative Path</button>
-              {contextMenu.node.type === "file" && <button type="button" role="menuitem" onClick={() => download(contextMenu.node!)}><Download size={14} /> Download</button>}
+              {contextMenu.node.type === "file" && <button type="button" role="menuitem" onClick={() => void download(contextMenu.node!)}><Download size={14} /> Download</button>}
               <button type="button" role="menuitem" onClick={() => { explorerRef.current?.scrollIntoView({ block: "nearest" }); setContextMenu(null); }}><Folder size={14} /> Reveal in Workspace</button>
             </>
           )}

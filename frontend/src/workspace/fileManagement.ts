@@ -1,8 +1,10 @@
-import type * as Y from "yjs";
+import * as Y from "yjs";
 import { createNode, getFileText, snapshot } from "./ops";
 import type { TreeNode } from "./types";
 
-export type ImportEntry = { path: string; content: string };
+export type TextImportEntry = { path: string; content: string };
+export type BinaryImportEntry = { path: string; bytes: Uint8Array; mimeType: string };
+export type ZipEntry = { path: string; bytes: Uint8Array };
 
 export function normalizeImportPath(path: string): string | null {
   const normalized = path.replaceAll("\\", "/").replace(/^\.\/+/, "");
@@ -29,7 +31,15 @@ export function pathForNode(view: ReturnType<typeof snapshot>, node: TreeNode): 
     names.unshift(parent.name);
     parent = parent.parentId ? view.nodes.get(parent.parentId) : undefined;
   }
+
   return names.join("/");
+}
+
+export function nodeForPath(doc: Y.Doc, path: string): TreeNode | null {
+  const normalized = normalizeImportPath(path);
+  if (!normalized) return null;
+  const view = snapshot(doc);
+  return Array.from(view.nodes.values()).find((node) => pathForNode(view, node) === normalized) ?? null;
 }
 
 function crc32(bytes: Uint8Array): number {
@@ -59,15 +69,14 @@ function concat(parts: Uint8Array[]): Uint8Array {
   return result;
 }
 
-export function createZip(entries: ReadonlyArray<ImportEntry>): Uint8Array {
-  const encoder = new TextEncoder();
+export function createZip(entries: ReadonlyArray<ZipEntry>): Uint8Array {
   const local: Uint8Array[] = [];
   const central: Uint8Array[] = [];
   let offset = 0;
 
   for (const entry of entries) {
-    const name = encoder.encode(entry.path);
-    const data = encoder.encode(entry.content);
+    const name = new TextEncoder().encode(entry.path);
+    const data = entry.bytes;
     const crc = crc32(data);
     const header = concat([
       u32(0x04034b50), u16(20), u16(0x800), u16(0), u16(0), u16(0),
@@ -90,17 +99,18 @@ export function createZip(entries: ReadonlyArray<ImportEntry>): Uint8Array {
   ]);
 }
 
-export function workspaceEntries(doc: Y.Doc): ImportEntry[] {
+export function workspaceTextEntries(doc: Y.Doc): TextImportEntry[] {
   const view = snapshot(doc);
   return Array.from(view.nodes.values())
-    .filter((node) => node.type === "file")
+    .filter((node) => node.type === "file" && node.kind !== "binary")
     .map((node) => ({ path: pathForNode(view, node), content: getFileText(doc, node.id)?.toString() ?? "" }));
 }
 
-export function importEntry(doc: Y.Doc, entry: ImportEntry, overwrite = false): { ok: true; id: string } | { ok: false; error: string } {
-  const normalized = normalizeImportPath(entry.path);
-  if (!normalized) return { ok: false, error: `Invalid import path: ${entry.path}` };
-  const parts = normalized.split("/");
+export function workspaceTextZipEntries(doc: Y.Doc): ZipEntry[] {
+  return workspaceTextEntries(doc).map((entry) => ({ path: entry.path, bytes: new TextEncoder().encode(entry.content) }));
+}
+
+function parentForPath(doc: Y.Doc, parts: string[]): { ok: true; id: string | null } | { ok: false; error: string } {
   let parentId: string | null = null;
   for (const folderName of parts.slice(0, -1)) {
     const existing = Array.from(snapshot(doc).nodes.values()).find(
@@ -113,9 +123,18 @@ export function importEntry(doc: Y.Doc, entry: ImportEntry, overwrite = false): 
       parentId = created.value;
     }
   }
+  return { ok: true, id: parentId };
+}
+
+export function importEntry(doc: Y.Doc, entry: TextImportEntry, overwrite = false): { ok: true; id: string } | { ok: false; error: string } {
+  const normalized = normalizeImportPath(entry.path);
+  if (!normalized) return { ok: false, error: `Invalid import path: ${entry.path}` };
+  const parts = normalized.split("/");
+  const parent = parentForPath(doc, parts);
+  if (!parent.ok) return parent;
   const filename = parts.at(-1)!;
   const existing = Array.from(snapshot(doc).nodes.values()).find(
-    (node) => node.type === "file" && node.parentId === parentId && node.name === filename,
+    (node) => node.type === "file" && node.parentId === parent.id && node.name === filename,
   );
   if (existing) {
     if (!overwrite) return { ok: false, error: `Duplicate file: ${normalized}` };
@@ -124,6 +143,43 @@ export function importEntry(doc: Y.Doc, entry: ImportEntry, overwrite = false): 
     text?.insert(0, entry.content);
     return { ok: true, id: existing.id };
   }
-  const created = createNode(doc, { type: "file", name: filename, parentId, content: entry.content });
+  const created = createNode(doc, { type: "file", name: filename, parentId: parent.id, content: entry.content });
+  return created.ok ? { ok: true, id: created.value } : created;
+}
+
+export function importBinaryEntry(
+  doc: Y.Doc,
+  entry: BinaryImportEntry & { assetId: string },
+  overwrite = false,
+): { ok: true; id: string } | { ok: false; error: string } {
+  const normalized = normalizeImportPath(entry.path);
+  if (!normalized) return { ok: false, error: `Invalid import path: ${entry.path}` };
+  const parts = normalized.split("/");
+  const parent = parentForPath(doc, parts);
+  if (!parent.ok) return parent;
+  const filename = parts.at(-1)!;
+  const existing = Array.from(snapshot(doc).nodes.values()).find(
+    (node) => node.type === "file" && node.parentId === parent.id && node.name === filename,
+  );
+  if (existing) {
+    if (!overwrite) return { ok: false, error: `Duplicate file: ${normalized}` };
+    const node = doc.getMap("tree").get(existing.id);
+    if (!(node instanceof Y.Map)) return { ok: false, error: "The file metadata is unavailable." };
+    node.set("kind", "binary");
+    node.set("assetId", entry.assetId);
+    node.set("mimeType", entry.mimeType);
+    node.set("size", entry.bytes.byteLength);
+    doc.getMap("contents").delete(existing.id);
+    return { ok: true, id: existing.id };
+  }
+  const created = createNode(doc, {
+    type: "file",
+    name: filename,
+    parentId: parent.id,
+    contentKind: "binary",
+    assetId: entry.assetId,
+    mimeType: entry.mimeType,
+    size: entry.bytes.byteLength,
+  });
   return created.ok ? { ok: true, id: created.value } : created;
 }

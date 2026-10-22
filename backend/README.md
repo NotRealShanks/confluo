@@ -35,3 +35,24 @@ deploying it separately with authenticated service-to-service networking.
 The frontend and backend still require the existing `VITE_API_URL`, MongoDB,
 JWT, OAuth, and Liveblocks configuration documented by the deployment
 environment.
+
+## PDF assets
+
+PDF files are stored as binary objects in MongoDB GridFS. Only the asset
+metadata (`assetId`, MIME type, and size) is synchronized in the shared Yjs
+tree; PDF bytes are never placed in Y.Text or Liveblocks updates. The
+project-scoped asset endpoints require the same authenticated project access
+checks as the rest of the API:
+
+```text
+POST   /api/projects/{projectId}/assets       multipart field: file
+GET    /api/projects/{projectId}/assets/{id}
+DELETE /api/projects/{projectId}/assets/{id}
+```
+
+Uploads require project edit access and are limited to PDF files. Viewers can
+download assets when they belong to the project, but cannot upload or delete
+them. MongoDB must provide GridFS collections and enough storage for project
+assets. The default per-request upload limit is 25 MB; production deployments
+should also enforce project-level quotas and an asset cleanup policy for
+replaced or deleted shared nodes.

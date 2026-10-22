@@ -11,11 +11,13 @@ import { safeCursorColor, safeCursorName } from "./lib/cursorCss";
 import { getYjsProviderForRoom } from "@liveblocks/yjs";
 import { getFileText, snapshot } from "./workspace/ops";
 import { languageForFilename } from "./workspace/language";
+import { downloadAsset } from "./api/assets";
 
 type UserState = { name: string; color: string; showName?: boolean };
 
 type EditorProps = {
   doc?: Y.Doc;
+  projectId?: string;
   fileId?: string | null;
   workspaceReady?: boolean;
   emptyWorkspace?: boolean;
@@ -24,6 +26,7 @@ type EditorProps = {
 
 export default function Editor({
   doc,
+  projectId,
   fileId,
   workspaceReady = true,
   emptyWorkspace = false,
@@ -38,7 +41,35 @@ export default function Editor({
   const [monacoInstance, setMonacoInstance] = useState<Monaco>();
   const [mountedFileId, setMountedFileId] = useState<string | null | undefined>(fileId);
   const fileName = fileId && doc ? snapshot(doc).nodes.get(fileId)?.name : undefined;
+  const fileNode = fileId && doc ? snapshot(doc).nodes.get(fileId) : undefined;
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pdfError, setPdfError] = useState<string | null>(null);
   const language = fileName ? languageForFilename(fileName) : "plaintext";
+
+  useEffect(() => {
+    let active = true;
+    if (fileNode?.kind !== "binary" || !fileNode.assetId || !projectId) {
+      setPdfUrl(null);
+      setPdfError(null);
+      return;
+    }
+    setPdfError(null);
+    void downloadAsset(projectId, fileNode.assetId)
+      .then((blob) => {
+        if (active) setPdfUrl(URL.createObjectURL(blob));
+      })
+      .catch(() => {
+        if (active) setPdfUrl(null);
+        if (active) setPdfError("This PDF could not be loaded. It may have been deleted or you may not have access.");
+      });
+    return () => {
+      active = false;
+      setPdfUrl((current) => {
+        if (current) URL.revokeObjectURL(current);
+        return null;
+      });
+    };
+  }, [fileNode?.assetId, fileNode?.kind, projectId]);
 
   // Set up Yjs doc and MonacoBinding (one-time on editor mount)
   useEffect(() => {
@@ -161,7 +192,15 @@ export default function Editor({
       {readOnly && (
         <p className="ide-readonly-notice">You have view-only access to this project.</p>
       )}
-      {fileId && workspaceReady ? (
+      {fileId && workspaceReady && fileNode?.kind === "binary" && pdfError ? (
+        <div className="ide-empty-editor">{pdfError}</div>
+      ) : fileId && workspaceReady && fileNode?.kind === "binary" && fileNode.assetId && projectId && pdfUrl ? (
+        <iframe
+          className="ide-pdf-preview"
+          title={fileNode.name}
+          src={pdfUrl}
+        />
+      ) : fileId && workspaceReady ? (
         <div className="ide-monaco">
           <MonacoEditor
             key={fileId}

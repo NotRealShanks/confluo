@@ -21,6 +21,7 @@ function renderExplorer() {
   render(
     <WorkspaceExplorer
       doc={doc}
+      projectId="test-project"
       ready
       selectedFileId={null}
       onSelectFile={onSelectFile}
@@ -35,6 +36,7 @@ function renderExplorerWithRequest(createFileRequest: number) {
   render(
     <WorkspaceExplorer
       doc={doc}
+      projectId="test-project"
       ready
       selectedFileId={null}
       onSelectFile={onSelectFile}

@@ -1,5 +1,5 @@
 import { nameKey, validateName } from "./names";
-import { LIMITS, fail, ok, type NodeType, type Result, type TreeNode } from "./types";
+import { LIMITS, fail, ok, type FileKind, type NodeType, type Result, type TreeNode } from "./types";
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 
@@ -13,7 +13,7 @@ export type TreeView = {
 
 function parseNode(raw: unknown): TreeNode | null {
   if (typeof raw !== "object" || raw === null) return null;
-  const { id, type, name, parentId } = raw as Record<string, unknown>;
+  const { id, type, name, parentId, kind, assetId, mimeType, size } = raw as Record<string, unknown>;
 
   if (typeof id !== "string" || !ID_PATTERN.test(id)) return null;
   if (type !== "file" && type !== "folder") return null;
@@ -21,7 +21,16 @@ function parseNode(raw: unknown): TreeNode | null {
   if (!checked.ok) return null;
 
   const parent = typeof parentId === "string" && ID_PATTERN.test(parentId) ? parentId : null;
-  return { id, type, name: checked.value, parentId: parent };
+  const fileKind: FileKind = type === "file" && kind === "binary" ? "binary" : "text";
+  return {
+    id,
+    type,
+    name: checked.value,
+    parentId: parent,
+    ...(type === "file" && fileKind === "binary" && typeof assetId === "string" ? { kind: fileKind, assetId } : {}),
+    ...(type === "file" && typeof mimeType === "string" ? { mimeType } : {}),
+    ...(type === "file" && typeof size === "number" && Number.isSafeInteger(size) && size >= 0 ? { size } : {}),
+  };
 }
 
 function splitExtension(name: string): [string, string] {

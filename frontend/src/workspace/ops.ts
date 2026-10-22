@@ -1,6 +1,6 @@
 import * as Y from "yjs";
 import { buildTree, descendantIds, validateCreate, validateMove, validateRename, type TreeView } from "./tree";
-import { fail, ok, type NodeType, type Result } from "./types";
+import { fail, ok, type FileKind, type NodeType, type Result } from "./types";
 
 const TREE_KEY = "tree";
 const CONTENTS_KEY = "contents";
@@ -26,7 +26,16 @@ export function readRawNodes(doc: Y.Doc): unknown[] {
   const raw: unknown[] = [];
   treeMap(doc).forEach((value, id) => {
     if (value instanceof Y.Map) {
-      raw.push({ id, type: value.get("type"), name: value.get("name"), parentId: value.get("parentId") });
+      raw.push({
+        id,
+        type: value.get("type"),
+        name: value.get("name"),
+        parentId: value.get("parentId"),
+        kind: value.get("kind"),
+        assetId: value.get("assetId"),
+        mimeType: value.get("mimeType"),
+        size: value.get("size"),
+      });
     }
   });
   return raw;
@@ -50,9 +59,20 @@ export function newId(): string {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+export type CreateFileInput = {
+  type: NodeType;
+  name: string;
+  parentId: string | null;
+  content?: string;
+  contentKind?: FileKind;
+  assetId?: string;
+  mimeType?: string;
+  size?: number;
+};
+
 export function createNode(
   doc: Y.Doc,
-  input: { type: NodeType; name: string; parentId: string | null; content?: string },
+  input: CreateFileInput,
 ): Result<string> {
   const checked = validateCreate(snapshot(doc), input.parentId, input.type, input.name);
   if (!checked.ok) return checked;
@@ -63,8 +83,16 @@ export function createNode(
     node.set("type", input.type);
     node.set("name", checked.value);
     node.set("parentId", input.parentId);
+    if (input.type === "file" && input.contentKind === "binary") {
+      node.set("kind", "binary");
+      node.set("assetId", input.assetId);
+      node.set("mimeType", input.mimeType ?? "application/octet-stream");
+      node.set("size", input.size ?? 0);
+    }
     treeMap(doc).set(id, node);
-    if (input.type === "file") contentsMap(doc).set(id, new Y.Text(input.content ?? ""));
+    if (input.type === "file" && input.contentKind !== "binary") {
+      contentsMap(doc).set(id, new Y.Text(input.content ?? ""));
+    }
   });
   return ok(id);
 }

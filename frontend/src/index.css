@@ -578,6 +578,14 @@ button {
   flex: 1;
 }
 
+.ide-pdf-preview {
+  width: 100%;
+  min-height: 0;
+  flex: 1;
+  border: 0;
+  background: #525252;
+}
+
 .ide-readonly-notice {
   z-index: 1;
   margin: 0;

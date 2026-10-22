@@ -12,6 +12,7 @@ describe("languageForFilename", () => {
     [".gitignore", "ignore"],
     [".env", "properties"],
     ["README", "markdown"],
+    ["guide.MARKDOWN", "markdown"],
     ["LICENSE", "plaintext"],
     ["extensionless", "plaintext"],
     ["unknown.custom", "plaintext"],

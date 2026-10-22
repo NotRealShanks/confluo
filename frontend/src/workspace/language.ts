@@ -14,6 +14,7 @@ const extensionLanguages: Readonly<Record<string, string>> = {
   ".jsx": "javascript",
   ".json": "json",
   ".md": "markdown",
+  ".markdown": "markdown",
   ".mjs": "javascript",
   ".py": "python",
   ".rs": "rust",

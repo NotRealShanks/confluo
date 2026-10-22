@@ -31,7 +31,7 @@ import { useRoom } from "@liveblocks/react/suspense";
 import { initialTabState, tabReducer } from "../workspace/tabState";
 import { executeProject, type ExecutionResult } from "../api/execution";
 import { languageForFilename } from "../workspace/language";
-import { pathForNode, workspaceEntries } from "../workspace/fileManagement";
+import { pathForNode, workspaceTextEntries } from "../workspace/fileManagement";
 import {
   SIDEBAR_DEFAULT_WIDTH,
   SIDEBAR_STEP,
@@ -225,7 +225,7 @@ export function CollaborativeWorkspace({ projectId, canInitialize = true, canRun
       const result: ExecutionResult = await executeProject(projectId, {
         language,
         entrypoint: pathForNode(view, node),
-        files: workspaceEntries(doc),
+        files: workspaceTextEntries(doc),
       });
       const status = result.timedOut ? "Timed out" : `Exited with code ${result.exitCode ?? "unknown"}`;
       setOutput([result.stdout, result.stderr, status].filter(Boolean).join("\n"));
@@ -242,6 +242,7 @@ export function CollaborativeWorkspace({ projectId, canInitialize = true, canRun
       {explorerOpen && <aside ref={sidebarRef} className="ide-sidebar" style={{ width: `${sidebarWidth}px` }}>
         <WorkspaceExplorer
           doc={doc}
+          projectId={projectId}
           ready={ready}
           selectedFileId={selectedFileId}
           onSelectFile={selectFile}
@@ -280,6 +281,7 @@ export function CollaborativeWorkspace({ projectId, canInitialize = true, canRun
           </div>
           <Editor
             doc={doc}
+            projectId={projectId}
             fileId={selectedFileId}
             workspaceReady={ready}
             emptyWorkspace={view.nodes.size === 0}
