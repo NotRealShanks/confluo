@@ -29,6 +29,20 @@ function renderExplorer() {
   return { doc, onSelectFile };
 }
 
+function createFolder(doc: Y.Doc, name: string, parentId: string | null = null) {
+  const node = snapshot(doc);
+  const folder = node.children.get(parentId)?.find((item) => item.name === name);
+  if (folder) return folder.id;
+  const tree = doc.getMap("tree");
+  const id = `${name}-id`;
+  const value = new Y.Map<unknown>();
+  value.set("type", "folder");
+  value.set("name", name);
+  value.set("parentId", parentId);
+  tree.set(id, value);
+  return id;
+}
+
 describe("WorkspaceExplorer new file input", () => {
   it("confirms a valid filename and selects the new file", () => {
     const { doc, onSelectFile } = renderExplorer();
@@ -89,5 +103,47 @@ describe("WorkspaceExplorer new file input", () => {
 
     expect(snapshot(doc).children.get(null)).toHaveLength(1);
     expect(screen.queryByRole("textbox", { name: "New folder name" })).toBeNull();
+  });
+
+  it("uses the selected folder as the toolbar parent for files and folders", () => {
+    const { doc, onSelectFile } = renderExplorer();
+    const srcId = createFolder(doc, "src");
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    fireEvent.click(screen.getByRole("button", { name: "src" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "New file" }));
+    const fileInput = screen.getByRole("textbox", { name: "New file name" });
+    fireEvent.change(fileInput, { target: { value: "index.js" } });
+    fireEvent.keyDown(fileInput, { key: "Enter" });
+
+    let view = snapshot(doc);
+    const file = view.children.get(srcId)?.find((item) => item.name === "index.js");
+    expect(file?.parentId).toBe(srcId);
+    expect(onSelectFile).toHaveBeenCalledWith(file?.id);
+
+    fireEvent.click(screen.getByRole("button", { name: "src" }));
+    fireEvent.click(screen.getByRole("button", { name: "New folder" }));
+    const folderInput = screen.getByRole("textbox", { name: "New folder name" });
+    fireEvent.change(folderInput, { target: { value: "components" } });
+    fireEvent.keyDown(folderInput, { key: "Enter" });
+
+    view = snapshot(doc);
+    const nestedFolder = view.children.get(srcId)?.find((item) => item.name === "components");
+    expect(nestedFolder?.parentId).toBe(srcId);
+    expect(screen.getByRole("button", { name: "Collapse components" })).not.toBeNull();
+  });
+
+  it("uses a context folder as the parent and renders the nested input", () => {
+    const { doc } = renderExplorer();
+    const srcId = createFolder(doc, "src");
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    fireEvent.contextMenu(screen.getByRole("button", { name: "src" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "New File" }));
+
+    const input = screen.getByRole("textbox", { name: "New file name" });
+    fireEvent.change(input, { target: { value: "nested.js" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(snapshot(doc).children.get(srcId)?.[0].parentId).toBe(srcId);
   });
 });

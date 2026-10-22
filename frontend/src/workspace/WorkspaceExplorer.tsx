@@ -43,6 +43,7 @@ export default function WorkspaceExplorer({
   const canWrite = useSelf((me) => me.canWrite);
   const [revision, setRevision] = useState(0);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
   const [inlineOperation, setInlineOperation] = useState<InlineOperation | null>(null);
   const [deleteNodeTarget, setDeleteNodeTarget] = useState<TreeNode | null>(null);
@@ -69,6 +70,12 @@ export default function WorkspaceExplorer({
   }, [selectedFileId, onSelectFile, view.nodes]);
 
   useEffect(() => {
+    if (selectedFolderId && view.nodes.get(selectedFolderId)?.type !== "folder") {
+      setSelectedFolderId(null);
+    }
+  }, [selectedFolderId, view.nodes]);
+
+  useEffect(() => {
     const close = () => setContextMenu(null);
     document.addEventListener("click", close);
     return () => document.removeEventListener("click", close);
@@ -88,8 +95,8 @@ export default function WorkspaceExplorer({
   };
 
   useEffect(() => {
-    if (createFileRequest > 0) beginNewFile(null);
-  }, [createFileRequest]);
+    if (createFileRequest > 0) beginNewFile(selectedFolderId);
+  }, [createFileRequest, selectedFolderId]);
 
   const create = (type: "file" | "folder", parentId: string | null) => {
     setContextMenu(null);
@@ -116,9 +123,15 @@ export default function WorkspaceExplorer({
         setInlineOperation((current) => current ? { ...current, error: result.error } : current);
         return;
       }
-      if (inlineOperation.type === "file" && result.value) onSelectFile(result.value);
+      if (inlineOperation.type === "file" && result.value) {
+        setSelectedFolderId(null);
+        onSelectFile(result.value);
+      }
       const parentId = inlineOperation.parentId;
       if (parentId) setExpanded((current) => new Set(current).add(parentId));
+      if (inlineOperation.type === "folder") {
+        setExpanded((current) => new Set(current).add(result.value));
+      }
     } else {
       const result = renameNode(doc, inlineOperation.nodeId, inlineOperation.name);
       if (!result.ok) {
@@ -210,7 +223,7 @@ export default function WorkspaceExplorer({
       return [
         <li key={node.id}>
           <div
-            className={`ide-tree-row ${node.id === selectedFileId ? "is-selected" : ""}`}
+            className={`ide-tree-row ${node.id === selectedFileId || node.id === selectedFolderId ? "is-selected" : ""}`}
             style={{ paddingLeft: `${depth * 12 + 4}px` }}
             onContextMenu={(event) => {
               event.preventDefault();
@@ -257,7 +270,15 @@ export default function WorkspaceExplorer({
             <button
               type="button"
               className="ide-tree-label"
-              onClick={() => node.type === "file" && onSelectFile(node.id)}
+              onClick={() => {
+                if (node.type === "file") {
+                  setSelectedFolderId(null);
+                  onSelectFile(node.id);
+                } else {
+                  setSelectedFolderId(node.id);
+                  onSelectFile("");
+                }
+              }}
             >
               {node.type === "folder" ? <Folder size={15} /> : <FileCode2 size={15} />}
               {view.displayNames.get(node.id) ?? node.name}
@@ -300,8 +321,8 @@ export default function WorkspaceExplorer({
         <h2>EXPLORER</h2>
         {canWrite && (
           <div className="ide-explorer-actions">
-            <button type="button" title="New file" aria-label="New file" onClick={() => beginNewFile(null)}><Plus size={16} /></button>
-            <button type="button" title="New folder" aria-label="New folder" onClick={() => create("folder", null)}><FolderPlus size={16} /></button>
+            <button type="button" title="New file" aria-label="New file" onClick={() => beginNewFile(selectedFolderId)}><Plus size={16} /></button>
+            <button type="button" title="New folder" aria-label="New folder" onClick={() => create("folder", selectedFolderId)}><FolderPlus size={16} /></button>
             <button type="button" title="Refresh" aria-label="Refresh" onClick={() => setRevision((value) => value + 1)}><RefreshCw size={15} /></button>
             <button type="button" title="Collapse all" aria-label="Collapse all" onClick={() => setExpanded(new Set())}><ChevronsDownUp size={15} /></button>
           </div>
