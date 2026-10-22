@@ -9,7 +9,8 @@ import { useRoom, useSelf } from "@liveblocks/react/suspense";
 import { colorFor } from "./lib/color";
 import { safeCursorColor, safeCursorName } from "./lib/cursorCss";
 import { getYjsProviderForRoom } from "@liveblocks/yjs";
-import { getFileText } from "./workspace/ops";
+import { getFileText, snapshot } from "./workspace/ops";
+import { languageForFilename } from "./workspace/language";
 
 type UserState = { name: string; color: string; showName?: boolean };
 
@@ -36,6 +37,8 @@ export default function Editor({
   const [editorInstance, setEditorInstance] = useState<editor.IStandaloneCodeEditor>();
   const [monacoInstance, setMonacoInstance] = useState<Monaco>();
   const [mountedFileId, setMountedFileId] = useState<string | null | undefined>(fileId);
+  const fileName = fileId && doc ? snapshot(doc).nodes.get(fileId)?.name : undefined;
+  const language = fileName ? languageForFilename(fileName) : "plaintext";
 
   // Set up Yjs doc and MonacoBinding (one-time on editor mount)
   useEffect(() => {
@@ -163,7 +166,7 @@ export default function Editor({
           <MonacoEditor
             key={fileId}
             height="100%"
-            defaultLanguage="javascript"
+            defaultLanguage={language}
             defaultValue=""
             path={`workspace/${fileId}`}
             options={{

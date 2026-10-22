@@ -7,7 +7,6 @@ import {
   ChevronRight,
   ChevronsDownUp,
   Copy,
-  FileCode2,
   Folder,
   FolderPlus,
   Pencil,
@@ -19,6 +18,7 @@ import { createNode, deleteNode, renameNode, snapshot } from "./ops";
 import { getContextMenuPosition } from "./contextMenu";
 import { descendantIds } from "./tree";
 import type { TreeNode } from "./types";
+import { fileIcon } from "./fileIcon";
 
 type WorkspaceExplorerProps = {
   doc: Y.Doc;
@@ -284,7 +284,7 @@ export default function WorkspaceExplorer({
                 }
               }}
             >
-              {node.type === "folder" ? <Folder size={15} /> : <FileCode2 size={15} />}
+              {fileIcon(node.name, node.type, expanded.has(node.id))}
               {view.displayNames.get(node.id) ?? node.name}
             </button>
           </div>
@@ -295,7 +295,7 @@ export default function WorkspaceExplorer({
     if (inlineOperation?.kind === "create" && inlineOperation.parentId === parentId) {
       nodes.unshift(
         <li key="new-file" className="ide-new-file-entry" style={{ paddingLeft: `${depth * 12 + 4}px` }}>
-          {inlineOperation.type === "folder" ? <Folder size={15} /> : <FileCode2 size={15} />}
+          {fileIcon(inlineOperation.type === "folder" ? "folder" : "new-file", inlineOperation.type)}
           <div className="ide-new-file-editor">
             <input
               ref={inlineInputRef}
