@@ -29,6 +29,9 @@ type WorkspaceExplorerProps = {
 };
 
 type ContextMenu = { x: number; y: number; node: TreeNode | null };
+type InlineOperation =
+  | { kind: "create"; type: "file" | "folder"; parentId: string | null; name: string; error: string }
+  | { kind: "rename"; nodeId: string; name: string; error: string };
 
 export default function WorkspaceExplorer({
   doc,
@@ -41,10 +44,11 @@ export default function WorkspaceExplorer({
   const [revision, setRevision] = useState(0);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
-  const [newFileParentId, setNewFileParentId] = useState<string | null | undefined>(undefined);
-  const [newFileName, setNewFileName] = useState("");
-  const [newFileError, setNewFileError] = useState("");
-  const newFileInputRef = useRef<HTMLInputElement>(null);
+  const [inlineOperation, setInlineOperation] = useState<InlineOperation | null>(null);
+  const [deleteNodeTarget, setDeleteNodeTarget] = useState<TreeNode | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [message, setMessage] = useState("");
+  const inlineInputRef = useRef<HTMLInputElement>(null);
   const explorerRef = useRef<HTMLElement>(null);
   const view = snapshot(doc);
 
@@ -70,21 +74,16 @@ export default function WorkspaceExplorer({
     return () => document.removeEventListener("click", close);
   }, []);
 
-  const perform = (result: { ok: true } | { ok: false; error: string }) => {
-    if (!result.ok) window.alert(result.error);
-  };
-
   useEffect(() => {
-    if (newFileParentId !== undefined) {
-      newFileInputRef.current?.focus();
+    if (inlineOperation) {
+      inlineInputRef.current?.focus();
+      if (inlineOperation.kind === "rename") inlineInputRef.current?.select();
     }
-  }, [newFileParentId]);
+  }, [inlineOperation]);
 
   const beginNewFile = (parentId: string | null) => {
     setContextMenu(null);
-    setNewFileName("");
-    setNewFileError("");
-    setNewFileParentId(parentId);
+    setInlineOperation({ kind: "create", type: "file", parentId, name: "", error: "" });
     if (parentId) setExpanded((current) => new Set(current).add(parentId));
   };
 
@@ -92,56 +91,67 @@ export default function WorkspaceExplorer({
     if (createFileRequest > 0) beginNewFile(null);
   }, [createFileRequest]);
 
-  const cancelNewFile = () => {
-    setNewFileParentId(undefined);
-    setNewFileName("");
-    setNewFileError("");
-  };
-
-  const confirmNewFile = () => {
-    const result = createNode(doc, {
-      type: "file",
-      name: newFileName,
-      parentId: newFileParentId ?? null,
-    });
-    if (!result.ok) {
-      setNewFileError(result.error);
-      return;
-    }
-    onSelectFile(result.value);
-    if (newFileParentId) setExpanded((current) => new Set(current).add(newFileParentId));
-    cancelNewFile();
-  };
-
   const create = (type: "file" | "folder", parentId: string | null) => {
-    if (type === "file") {
-      beginNewFile(parentId);
-      return;
-    }
-    const name = window.prompt(`Name for new ${type}`);
-    if (name === null) return;
-    const result = createNode(doc, { type, name, parentId });
-    if (!result.ok) {
-      window.alert(result.error);
-      return;
-    }
+    setContextMenu(null);
+    setInlineOperation({ kind: "create", type, parentId, name: "", error: "" });
     if (parentId) setExpanded((current) => new Set(current).add(parentId));
   };
 
   const rename = (node: TreeNode) => {
-    const name = window.prompt("New name", node.name);
-    if (name !== null) perform(renameNode(doc, node.id, name));
+    setContextMenu(null);
+    setInlineOperation({ kind: "rename", nodeId: node.id, name: node.name, error: "" });
+  };
+
+  const cancelInlineOperation = () => setInlineOperation(null);
+
+  const confirmInlineOperation = () => {
+    if (!inlineOperation) return;
+    if (inlineOperation.kind === "create") {
+      const result = createNode(doc, {
+        type: inlineOperation.type,
+        name: inlineOperation.name,
+        parentId: inlineOperation.parentId,
+      });
+      if (!result.ok) {
+        setInlineOperation((current) => current ? { ...current, error: result.error } : current);
+        return;
+      }
+      if (inlineOperation.type === "file" && result.value) onSelectFile(result.value);
+      const parentId = inlineOperation.parentId;
+      if (parentId) setExpanded((current) => new Set(current).add(parentId));
+    } else {
+      const result = renameNode(doc, inlineOperation.nodeId, inlineOperation.name);
+      if (!result.ok) {
+        setInlineOperation((current) => current ? { ...current, error: result.error } : current);
+        return;
+      }
+    }
+    cancelInlineOperation();
   };
 
   useEffect(() => {
+    if (!inlineOperation) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Node && !inlineInputRef.current?.contains(event.target)) {
+        cancelInlineOperation();
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [inlineOperation]);
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setContextMenu(null);
+      if (event.key === "Escape") {
+        setContextMenu(null);
+        setDeleteNodeTarget(null);
+        cancelInlineOperation();
+      }
       if (event.key === "F2" && canWrite && selectedFileId) {
         const node = view.nodes.get(selectedFileId);
         if (node) {
           event.preventDefault();
-          const name = window.prompt("New name", node.name);
-          if (name !== null) perform(renameNode(doc, node.id, name));
+          rename(node);
         }
       }
     };
@@ -164,18 +174,32 @@ export default function WorkspaceExplorer({
     try {
       await navigator.clipboard.writeText(relative ? path : `workspace/${path}`);
     } catch {
-      window.alert("Could not copy the path.");
+      setMessage("Could not copy the path.");
     }
     setContextMenu(null);
   };
 
   const remove = (node: TreeNode) => {
-    if (!window.confirm(`Delete ${node.name}?`)) return;
+    setDeleteNodeTarget(node);
+    setContextMenu(null);
+  };
+
+  const confirmDelete = () => {
+    if (!deleteNodeTarget || deleting) return;
+    setDeleting(true);
+    const node = deleteNodeTarget;
     const removedIds = new Set([node.id, ...descendantIds(view, node.id)]);
-    perform(deleteNode(doc, node.id));
+    const result = deleteNode(doc, node.id);
+    if (!result.ok) {
+      setMessage(result.error);
+      setDeleting(false);
+      return;
+    }
     if (selectedFileId && removedIds.has(selectedFileId)) {
       onSelectFile("");
     }
+    setDeleteNodeTarget(null);
+    setDeleting(false);
   };
 
   const renderNodes = (parentId: string | null, depth: number): ReactElement[] => {
@@ -196,7 +220,22 @@ export default function WorkspaceExplorer({
               });
             }}
           >
-            {node.type === "folder" ? (
+            {inlineOperation?.kind === "rename" && inlineOperation.nodeId === node.id ? (
+              <div className="ide-inline-editor">
+                <input
+                  ref={inlineInputRef}
+                  aria-label={`Rename ${node.name}`}
+                  value={inlineOperation.name}
+                  onChange={(event) => setInlineOperation((current) => current && { ...current, name: event.target.value, error: "" })}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") confirmInlineOperation();
+                    if (event.key === "Escape") cancelInlineOperation();
+                  }}
+                  className="ide-new-file-input"
+                />
+                {inlineOperation.error && <span className="ide-new-file-error">{inlineOperation.error}</span>}
+              </div>
+            ) : node.type === "folder" ? (
               <button
                 type="button"
                 aria-label={`${expanded.has(node.id) ? "Collapse" : "Expand"} ${node.name}`}
@@ -228,27 +267,26 @@ export default function WorkspaceExplorer({
         </li>,
       ];
     });
-    if (newFileParentId !== undefined && newFileParentId === parentId) {
+    if (inlineOperation?.kind === "create" && inlineOperation.parentId === parentId) {
       nodes.unshift(
         <li key="new-file" className="ide-new-file-entry" style={{ paddingLeft: `${depth * 12 + 4}px` }}>
-          <FileCode2 size={15} />
+          {inlineOperation.type === "folder" ? <Folder size={15} /> : <FileCode2 size={15} />}
           <div className="ide-new-file-editor">
             <input
-              ref={newFileInputRef}
-              aria-label="New file name"
-              value={newFileName}
+              ref={inlineInputRef}
+              aria-label={`New ${inlineOperation.type} name`}
+              value={inlineOperation.name}
               onChange={(event) => {
-                setNewFileName(event.target.value);
-                setNewFileError("");
+                setInlineOperation((current) => current && { ...current, name: event.target.value, error: "" });
               }}
               onKeyDown={(event) => {
-                if (event.key === "Enter") confirmNewFile();
-                if (event.key === "Escape") cancelNewFile();
+                if (event.key === "Enter") confirmInlineOperation();
+                if (event.key === "Escape") cancelInlineOperation();
               }}
-              placeholder="filename.ext"
+              placeholder={inlineOperation.type === "file" ? "filename.ext" : "folder name"}
               className="ide-new-file-input"
             />
-            {newFileError && <span className="ide-new-file-error">{newFileError}</span>}
+            {inlineOperation.error && <span className="ide-new-file-error">{inlineOperation.error}</span>}
           </div>
         </li>,
       );
@@ -284,6 +322,7 @@ export default function WorkspaceExplorer({
         </ul>
       )}
       {view.truncated && <p className="ide-explorer-message warning">Some items are hidden because this workspace is at its limit.</p>}
+      {message && <p className="ide-explorer-message" role="status">{message}</p>}
       {contextMenu && (
         <div className="ide-context-menu" style={{ left: contextMenu.x, top: contextMenu.y }} role="menu" onClick={(event) => event.stopPropagation()}>
           {canWrite && (
@@ -292,7 +331,6 @@ export default function WorkspaceExplorer({
                 beginNewFile(contextMenu.node?.type === "folder" ? contextMenu.node.id : null);
               }}><Plus size={14} /> New File</button>
               <button type="button" role="menuitem" onClick={() => {
-                setContextMenu(null);
                 create("folder", contextMenu.node?.type === "folder" ? contextMenu.node.id : null);
               }}><FolderPlus size={14} /> New Folder</button>
             </>
@@ -312,6 +350,18 @@ export default function WorkspaceExplorer({
               <button type="button" role="menuitem" onClick={() => { explorerRef.current?.scrollIntoView({ block: "nearest" }); setContextMenu(null); }}><Folder size={14} /> Reveal in Workspace</button>
             </>
           )}
+        </div>
+      )}
+      {deleteNodeTarget && (
+        <div className="ide-confirm-backdrop" role="presentation">
+          <section className="ide-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-title">
+            <h2 id="delete-title">Delete {deleteNodeTarget.type}?</h2>
+            <p>This will permanently delete <strong>{deleteNodeTarget.name}</strong>{deleteNodeTarget.type === "folder" ? " and everything inside it" : ""}.</p>
+            <div className="ide-confirm-actions">
+              <button type="button" onClick={() => setDeleteNodeTarget(null)} disabled={deleting}>Cancel</button>
+              <button type="button" className="danger" onClick={confirmDelete} disabled={deleting}>{deleting ? "Deleting…" : "Delete"}</button>
+            </div>
+          </section>
         </div>
       )}
     </aside>

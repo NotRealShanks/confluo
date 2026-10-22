@@ -43,6 +43,7 @@ export default function ShareDialog({ projectId, projectRole, onClose }: Props) 
   const [linkLoading, setLinkLoading] = useState(canManageLinks);
   const [linkMessage, setLinkMessage] = useState("");
   const [newLinkUrl, setNewLinkUrl] = useState("");
+  const [linkToRevoke, setLinkToRevoke] = useState<ShareLink | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -120,7 +121,7 @@ export default function ShareDialog({ projectId, projectRole, onClose }: Props) 
   }
 
   async function handleRevokeLink(link: ShareLink) {
-    if (linkBusy || !window.confirm("Revoke this share link?")) return;
+    if (linkBusy) return;
     setLinkBusy(true);
     setError("");
     setLinkError("");
@@ -133,12 +134,22 @@ export default function ShareDialog({ projectId, projectRole, onClose }: Props) 
             : item,
         ),
       );
+      setLinkToRevoke(null);
     } catch {
       setLinkError("Could not revoke share link.");
     } finally {
       setLinkBusy(false);
     }
   }
+
+  useEffect(() => {
+    if (!linkToRevoke) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !linkBusy) setLinkToRevoke(null);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [linkBusy, linkToRevoke]);
 
   async function handleAdd(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -381,7 +392,7 @@ export default function ShareDialog({ projectId, projectRole, onClose }: Props) 
                 {link.status === "ACTIVE" && (
                   <button
                     type="button"
-                    onClick={() => void handleRevokeLink(link)}
+                    onClick={() => setLinkToRevoke(link)}
                     disabled={linkBusy}
                     className="font-medium text-red-600 hover:underline disabled:opacity-50"
                   >
@@ -534,6 +545,41 @@ export default function ShareDialog({ projectId, projectRole, onClose }: Props) 
                 className="rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
               >
                 {busy ? "Removing…" : "Remove member"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+      {linkToRevoke && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/40 p-4">
+          <section
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="revoke-link-title"
+            className="w-full max-w-sm rounded-xl bg-white p-5 shadow-2xl"
+          >
+            <h3 id="revoke-link-title" className="text-lg font-semibold text-gray-900">
+              Revoke share link?
+            </h3>
+            <p className="mt-2 text-sm leading-6 text-gray-600">
+              Anyone using this link will no longer be able to access the project.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={linkBusy}
+                onClick={() => setLinkToRevoke(null)}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={linkBusy}
+                onClick={() => void handleRevokeLink(linkToRevoke)}
+                className="rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {linkBusy ? "Revoking…" : "Revoke link"}
               </button>
             </div>
           </section>

@@ -70,4 +70,24 @@ describe("WorkspaceExplorer new file input", () => {
     expect(screen.getByText(/invalid|name/i)).not.toBeNull();
     expect(snapshot(doc).nodes.size).toBe(0);
   });
+
+  it("creates a folder with Enter and cancels when clicking outside", () => {
+    const { doc } = renderExplorer();
+
+    fireEvent.click(screen.getByRole("button", { name: "New folder" }));
+    const input = screen.getByRole("textbox", { name: "New folder name" });
+    fireEvent.change(input, { target: { value: "src" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(snapshot(doc).children.get(null)?.[0].name).toBe("src");
+
+    fireEvent.click(screen.getByRole("button", { name: "New folder" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "New folder name" }), {
+      target: { value: "cancelled" },
+    });
+    fireEvent.pointerDown(document.body);
+
+    expect(snapshot(doc).children.get(null)).toHaveLength(1);
+    expect(screen.queryByRole("textbox", { name: "New folder name" })).toBeNull();
+  });
 });

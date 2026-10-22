@@ -256,6 +256,11 @@ button {
   flex: 1;
 }
 
+.ide-inline-editor {
+  min-width: 0;
+  flex: 1;
+}
+
 .ide-new-file-input {
   width: 100%;
   min-width: 0;
@@ -372,6 +377,63 @@ button {
 .ide-menu-divider {
   margin: 4px 0;
   border-top: 1px solid #e5e7eb;
+}
+
+.ide-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  background: rgb(15 23 42 / 28%);
+}
+
+.ide-confirm-dialog {
+  width: min(360px, calc(100vw - 32px));
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 18px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgb(15 23 42 / 22%);
+}
+
+.ide-confirm-dialog h2 {
+  margin: 0;
+  color: #111827;
+  font-size: 15px;
+}
+
+.ide-confirm-dialog p {
+  margin: 10px 0 18px;
+  color: #4b5563;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.ide-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.ide-confirm-actions button {
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  padding: 6px 11px;
+  background: #fff;
+  color: #374151;
+  font-size: 12px;
+}
+
+.ide-confirm-actions button.danger {
+  border-color: #b91c1c;
+  background: #b91c1c;
+  color: #fff;
+}
+
+.ide-confirm-actions button:disabled {
+  cursor: not-allowed;
+  opacity: .6;
 }
 
 .ide-main {
