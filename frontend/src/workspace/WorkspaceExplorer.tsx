@@ -22,8 +22,9 @@ import { getContextMenuPosition } from "./contextMenu";
 import { descendantIds } from "./tree";
 import type { TreeNode } from "./types";
 import { fileIcon } from "./fileIcon";
-import { createZip, importBinaryEntry, importEntry, isTextBuffer, nodeForPath, pathForNode } from "./fileManagement";
-import { downloadAsset, uploadAsset } from "../api/assets";
+import { createZip, importBinaryEntry, importEntry, isTextBuffer, nodeForPath, normalizeImportPath, pathForNode } from "./fileManagement";
+import { deleteAsset, downloadAsset, uploadAsset } from "../api/assets";
+import { ApiError } from "../api/client";
 import { workspaceTextZipEntries } from "./fileManagement";
 
 type WorkspaceExplorerProps = {
@@ -59,6 +60,7 @@ export default function WorkspaceExplorer({
   const [message, setMessage] = useState("");
   const [importing, setImporting] = useState(false);
   const inlineInputRef = useRef<HTMLInputElement>(null);
+  const selectRenameStem = useRef(false);
   const lastCreateFileRequest = useRef(0);
   const explorerRef = useRef<HTMLElement>(null);
   const importFilesRef = useRef<HTMLInputElement>(null);
@@ -95,8 +97,15 @@ export default function WorkspaceExplorer({
 
   useEffect(() => {
     if (inlineOperation) {
-      inlineInputRef.current?.focus();
-      if (inlineOperation.kind === "rename") inlineInputRef.current?.select();
+      const input = inlineInputRef.current;
+      input?.focus();
+      if (inlineOperation.kind === "rename" && input && selectRenameStem.current) {
+        const name = inlineOperation.name;
+        const dot = name.lastIndexOf(".");
+        const stemEnd = dot > 0 ? dot : name.length;
+        input.setSelectionRange(0, stemEnd);
+        selectRenameStem.current = false;
+      }
     }
   }, [inlineOperation]);
 
@@ -121,6 +130,7 @@ export default function WorkspaceExplorer({
 
   const rename = (node: TreeNode) => {
     setContextMenu(null);
+    selectRenameStem.current = true;
     setInlineOperation({ kind: "rename", nodeId: node.id, name: node.name, error: "" });
   };
 
@@ -160,7 +170,7 @@ export default function WorkspaceExplorer({
   useEffect(() => {
     if (!inlineOperation) return;
     const onPointerDown = (event: PointerEvent) => {
-      if (event.target instanceof Node && !inlineInputRef.current?.contains(event.target)) {
+      if (inlineOperation.kind === "create" && event.target instanceof Node && !inlineInputRef.current?.contains(event.target)) {
         cancelInlineOperation();
       }
     };
@@ -246,75 +256,83 @@ export default function WorkspaceExplorer({
 
   const importFiles = async (files: FileList | null) => {
     if (!files || importing) return;
-    if (!projectId) {
-      setMessage("Project assets are unavailable.");
-      return;
-    }
     setImporting(true);
     let imported = 0;
+    const failures: string[] = [];
+    const limit = 25 * 1024 * 1024;
+    const describeError = (error: unknown): string => {
+      if (error instanceof ApiError) {
+        if (error.status === 401) return "Sign in again to upload files.";
+        if (error.status === 403) return "You do not have permission to upload to this project.";
+        if (error.status === 413) return "The file exceeds the 25 MB upload limit.";
+        if (error.status === 415) return "The server rejected this file format.";
+        if (error.status >= 500) return "The server could not complete the upload.";
+        return error.message || `Upload failed (HTTP ${error.status}).`;
+      }
+      if (error instanceof TypeError) return "The server is unavailable or the network request failed.";
+      return error instanceof Error ? error.message : "Unexpected import error.";
+    };
+    const isPdfBytes = (bytes: Uint8Array) => {
+      const header = new TextDecoder("ascii").decode(bytes.subarray(0, Math.min(bytes.length, 1024)));
+      return header.includes("%PDF-");
+    };
     try {
       for (const file of Array.from(files)) {
-        const path = file.webkitRelativePath || file.name;
-        const buffer = await file.arrayBuffer();
-        const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
-        if (isPdf || !isTextBuffer(buffer)) {
-          if (!isPdf) {
-            setMessage(`Unsupported binary file "${file.name}". Only PDF assets are supported.`);
-            continue;
-          }
-          let importPath = path;
+        let uploadedAssetId: string | null = null;
+        let importPath = file.webkitRelativePath || file.name;
+        try {
+          const buffer = await file.arrayBuffer();
+          const bytes = new Uint8Array(buffer);
+          if (file.size > limit) throw new Error("The file exceeds the 25 MB upload limit.");
+          if (!normalizeImportPath(importPath)) throw new Error("The relative path is invalid.");
+          const pdf = isPdfBytes(bytes);
+          if (/\.pdf$/i.test(file.name) && !pdf) throw new Error("The file does not contain valid PDF data.");
+          if (!pdf && !isTextBuffer(buffer)) throw new Error("Unsupported binary file. Only UTF-8 text and PDF files are supported.");
+          const decoder = new TextDecoder("utf-8", { fatal: true });
+          const content = pdf ? "" : decoder.decode(buffer);
           let overwrite = false;
-          if (nodeForPath(doc, importPath)) {
-            const choice = window.prompt(
-              `Duplicate file: ${importPath}\nType overwrite, skip, or rename.`,
-              "skip",
-            )?.trim().toLowerCase();
+          const existing = nodeForPath(doc, importPath);
+          if (existing) {
+            const choice = window.prompt(`Duplicate file: ${importPath}\nType overwrite, skip, or rename.`, "skip")?.trim().toLowerCase();
             if (choice === "skip" || !choice) continue;
             if (choice === "overwrite") overwrite = true;
-            if (choice === "rename") {
+            else if (choice === "rename") {
               const renamed = window.prompt("Enter a new relative path:", `${importPath}.copy`);
               if (!renamed) continue;
+              if (!normalizeImportPath(renamed)) throw new Error("The chosen relative path is invalid.");
               importPath = renamed;
+              if (nodeForPath(doc, importPath)) throw new Error(`Duplicate file: ${importPath}`);
+            } else throw new Error("Choose overwrite, skip, or rename.");
+          }
+          const previous = overwrite ? nodeForPath(doc, importPath) : null;
+          if (pdf) {
+            const assetProjectId = projectId;
+            if (!assetProjectId) throw new Error("Project assets are unavailable for PDF uploads.");
+            const uploaded = await uploadAsset(assetProjectId, file);
+            uploadedAssetId = uploaded.assetId;
+            const result = importBinaryEntry(doc, { path: importPath, bytes, mimeType: "application/pdf", assetId: uploaded.assetId }, overwrite);
+            if (!result.ok) throw new Error(result.error);
+            uploadedAssetId = null;
+            imported++;
+            if (previous?.assetId && previous.assetId !== uploaded.assetId) {
+              const stillUsed = Array.from(snapshot(doc).nodes.values()).some((node) => node.assetId === previous.assetId);
+              if (!stillUsed) void deleteAsset(assetProjectId, previous.assetId).catch((error) => console.warn("Asset cleanup failed", error));
+            }
+          } else {
+            const result = importEntry(doc, { path: importPath, content }, overwrite);
+            if (!result.ok) throw new Error(result.error);
+            imported++;
+            if (projectId && previous?.assetId && !Array.from(snapshot(doc).nodes.values()).some((node) => node.assetId === previous.assetId)) {
+              void deleteAsset(projectId, previous.assetId).catch((error) => console.warn("Asset cleanup failed", error));
             }
           }
-          const uploaded = await uploadAsset(projectId, file);
-          const result = importBinaryEntry(doc, {
-            path: importPath,
-            bytes: new Uint8Array(buffer),
-            mimeType: file.type || "application/pdf",
-            assetId: uploaded.assetId,
-          }, overwrite);
-          if (result.ok) imported++;
-          else setMessage(result.error);
-          continue;
+        } catch (error) {
+          if (projectId && uploadedAssetId) await deleteAsset(projectId, uploadedAssetId).catch((cleanupError) => console.warn("Uploaded asset cleanup failed", cleanupError));
+          failures.push(`${file.name}: ${describeError(error)}`);
+          if (import.meta.env.DEV) console.warn("Workspace import failed", { fileName: file.name, path: importPath, error });
         }
-        const result = importEntry(doc, {
-          path,
-          content: new TextDecoder("utf-8").decode(buffer),
-        }, false);
-        if (!result.ok && result.error.startsWith("Duplicate file:")) {
-          const choice = window.prompt(
-            `${result.error}\nType overwrite, skip, or rename.`,
-            "skip",
-          )?.trim().toLowerCase();
-          if (choice === "overwrite") {
-            const overwritten = importEntry(doc, {
-              path,
-              content: new TextDecoder("utf-8").decode(buffer),
-            }, true);
-            if (overwritten.ok) imported++;
-          } else if (choice === "rename") {
-            const renamed = window.prompt("Enter a new relative path:", `${path}.copy`);
-            if (renamed && importEntry(doc, {
-              path: renamed,
-              content: new TextDecoder("utf-8").decode(buffer),
-            }).ok) imported++;
-          }
-        } else if (result.ok) imported++;
       }
-      if (imported > 0) setMessage(`Imported ${imported} file${imported === 1 ? "" : "s"}.`);
-    } catch {
-      setMessage("Import failed. Check the selected files and try again.");
+      setMessage([imported ? `Imported ${imported} file${imported === 1 ? "" : "s"}.` : "", failures.length ? `Failed ${failures.length}: ${failures.join("; ")}` : ""].filter(Boolean).join(" "));
     } finally {
       setImporting(false);
       if (importFilesRef.current) importFilesRef.current.value = "";
@@ -332,6 +350,10 @@ export default function WorkspaceExplorer({
     setDeleting(true);
     const node = deleteNodeTarget;
     const removedIds = new Set([node.id, ...descendantIds(view, node.id)]);
+    const removedAssets = Array.from(removedIds).flatMap((id) => {
+      const removed = view.nodes.get(id);
+      return removed?.assetId ? [removed.assetId] : [];
+    });
     const result = deleteNode(doc, node.id);
     if (!result.ok) {
       setMessage(result.error);
@@ -340,6 +362,13 @@ export default function WorkspaceExplorer({
     }
     if (selectedFileId && removedIds.has(selectedFileId)) {
       onSelectFile("");
+    }
+    if (projectId) {
+      for (const assetId of removedAssets) {
+        if (!Array.from(snapshot(doc).nodes.values()).some((remaining) => remaining.assetId === assetId)) {
+          void deleteAsset(projectId, assetId).catch((error) => console.warn("Asset cleanup failed", error));
+        }
+      }
     }
     setDeleteNodeTarget(null);
     setDeleting(false);
@@ -397,7 +426,7 @@ export default function WorkspaceExplorer({
             ) : (
               <span className="ide-tree-chevron" />
             )}
-            <button
+            {!(inlineOperation?.kind === "rename" && inlineOperation.nodeId === node.id) && <button
               type="button"
               className="ide-tree-label"
               onClick={() => {
@@ -412,7 +441,7 @@ export default function WorkspaceExplorer({
             >
               {fileIcon(node.name, node.type, expanded.has(node.id))}
               {view.displayNames.get(node.id) ?? node.name}
-            </button>
+            </button>}
           </div>
           {children}
         </li>,

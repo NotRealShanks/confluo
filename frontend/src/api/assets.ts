@@ -1,4 +1,4 @@
-import { apiFetch } from "./client";
+import { ApiError, apiFetch } from "./client";
 import { getToken } from "../auth/token";
 
 export type AssetResponse = { assetId: string; contentType: string | null; size: number };
@@ -21,6 +21,15 @@ export async function downloadAsset(projectId: string, assetId: string): Promise
   const response = await fetch(assetUrl(projectId, assetId), {
     headers: { Authorization: `Bearer ${getToken() ?? ""}` },
   });
-  if (!response.ok) throw new Error(`Could not download asset (${response.status}).`);
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({})) as { message?: string };
+    throw new ApiAssetError(response.status, body.message ?? response.statusText);
+  }
   return response.blob();
 }
+
+export async function deleteAsset(projectId: string, assetId: string): Promise<void> {
+  await apiFetch<void>(`/api/projects/${encodeURIComponent(projectId)}/assets/${encodeURIComponent(assetId)}`, { method: "DELETE" });
+}
+
+export class ApiAssetError extends ApiError {}

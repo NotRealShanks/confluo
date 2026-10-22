@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import * as Y from "yjs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import WorkspaceExplorer from "./WorkspaceExplorer";
-import { snapshot } from "./ops";
+import { createNode, getFileText, snapshot } from "./ops";
 
 vi.mock("@liveblocks/react/suspense", () => ({
   useSelf: (selector: (value: { canWrite: boolean }) => unknown) =>
@@ -15,13 +15,13 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function renderExplorer() {
+function renderExplorer(projectId = "test-project") {
   const doc = new Y.Doc();
   const onSelectFile = vi.fn();
   render(
     <WorkspaceExplorer
       doc={doc}
-      projectId="test-project"
+      projectId={projectId}
       ready
       selectedFileId={null}
       onSelectFile={onSelectFile}
@@ -186,5 +186,56 @@ describe("WorkspaceExplorer new file input", () => {
 
     expect(screen.queryByRole("textbox", { name: "New file name" })).toBeNull();
     expect(snapshot(doc).nodes.get(srcId)?.type).toBe("folder");
+  });
+});
+
+describe("WorkspaceExplorer inline rename", () => {
+  it.each([
+    ["fileIcon.tsx", "fileIcon"],
+    ["file.test.tsx", "file.test"],
+    ["archive.tar.gz", "archive.tar"],
+    ["README", "README"],
+    ["Dockerfile", "Dockerfile"],
+    [".env", ".env"],
+    [".gitignore", ".gitignore"],
+  ])("selects only the stem of %s", (filename, stem) => {
+    const { doc } = renderExplorer();
+    const created = createNode(doc, { type: "file", name: filename, parentId: null, content: "keep" });
+    if (!created.ok) throw new Error(created.error);
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    fireEvent.contextMenu(screen.getByRole("button", { name: filename }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Rename/ }));
+    const input = screen.getByRole("textbox", { name: `Rename ${filename}` }) as HTMLInputElement;
+    expect(document.activeElement).toBe(input);
+    expect([input.selectionStart, input.selectionEnd]).toEqual([0, stem.length]);
+  });
+
+  it("confirms stem and extension edits while preserving content", () => {
+    const { doc } = renderExplorer();
+    const created = createNode(doc, { type: "file", name: "notes.md", parentId: null, content: "hello" });
+    if (!created.ok) throw new Error(created.error);
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    fireEvent.contextMenu(screen.getByRole("button", { name: "notes.md" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Rename/ }));
+    const input = screen.getByRole("textbox", { name: "Rename notes.md" });
+    fireEvent.change(input, { target: { value: "guide.txt" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(snapshot(doc).nodes.get(created.value)?.name).toBe("guide.txt");
+    expect(getFileText(doc, created.value)?.toString()).toBe("hello");
+  });
+});
+
+describe("WorkspaceExplorer import", () => {
+  it("imports text files when the project asset ID is unavailable", async () => {
+    const { doc } = renderExplorer("");
+    const file = new File(["hello"], "notes.md", { type: "text/markdown" });
+    Object.defineProperty(file, "arrayBuffer", { value: async () => new TextEncoder().encode("# hello").buffer });
+    const picker = document.querySelector('input[type="file"]') as HTMLInputElement;
+
+    fireEvent.change(picker, { target: { files: [file] } });
+
+    await waitFor(() => expect(snapshot(doc).nodes.size).toBe(1));
+    expect(snapshot(doc).children.get(null)?.[0].name).toBe("notes.md");
+    expect(screen.getByRole("status").textContent).toContain("Imported 1 file");
   });
 });

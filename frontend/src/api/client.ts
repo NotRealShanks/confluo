@@ -2,7 +2,7 @@ import { getToken } from "../auth/token";
 
 const API_URL: string = import.meta.env.VITE_API_URL ?? "http://localhost:8080";
 
-type ErrorBody = { message?: string; fieldErrors?: Record<string, string> };
+type ErrorBody = { message?: string; detail?: string; fieldErrors?: Record<string, string> };
 
 export class ApiError extends Error {
   readonly status: number;
@@ -25,7 +25,8 @@ export async function apiFetch<T>(
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
   }
-  if (init.body !== undefined && !headers.has("Content-Type")) {
+  // Let the browser add the multipart boundary for FormData requests.
+  if (init.body !== undefined && !(init.body instanceof FormData) && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
@@ -33,7 +34,7 @@ export async function apiFetch<T>(
   if (!response.ok) {
     // 401s from the filter chain have an empty body, so parsing is best-effort
     const body = (await response.json().catch(() => ({}))) as ErrorBody;
-    throw new ApiError(response.status, body.message ?? response.statusText, body.fieldErrors);
+    throw new ApiError(response.status, body.detail ?? body.message ?? response.statusText, body.fieldErrors);
   }
   if (response.status === 204) {
     return undefined as T;

@@ -2,6 +2,7 @@ package com.github.notrealshanks.confluobackend.service;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Arrays;
 
 import org.bson.Document;
 import org.bson.types.ObjectId;
@@ -10,6 +11,7 @@ import org.springframework.data.mongodb.gridfs.GridFsTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
@@ -35,9 +37,9 @@ public class AssetService {
         }
         try (InputStream input = file.getInputStream()) {
             Document metadata = new Document("projectId", projectId)
-                    .append("contentType", file.getContentType());
-            ObjectId id = gridFsTemplate.store(input, file.getOriginalFilename(), file.getContentType(), metadata);
-            return new AssetResponse(id.toHexString(), file.getContentType(), file.getSize());
+                    .append("contentType", MediaType.APPLICATION_PDF_VALUE);
+            ObjectId id = gridFsTemplate.store(input, file.getOriginalFilename(), MediaType.APPLICATION_PDF_VALUE, metadata);
+            return new AssetResponse(id.toHexString(), MediaType.APPLICATION_PDF_VALUE, file.getSize());
         } catch (IOException error) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Could not read asset", error);
         }
@@ -45,8 +47,16 @@ public class AssetService {
     }
 
     private static boolean isPdf(MultipartFile file) {
-        return "application/pdf".equalsIgnoreCase(file.getContentType())
-                || (file.getOriginalFilename() != null && file.getOriginalFilename().toLowerCase().endsWith(".pdf"));
+        try (InputStream input = file.getInputStream()) {
+            byte[] header = input.readNBytes(1024);
+            byte[] signature = "%PDF-".getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+            for (int i = 0; i <= header.length - signature.length; i++) {
+                if (Arrays.equals(Arrays.copyOfRange(header, i, i + signature.length), signature)) return true;
+            }
+            return false;
+        } catch (IOException error) {
+            return false;
+        }
     }
 
     public AssetDownload download(String userId, String projectId, String assetId) {

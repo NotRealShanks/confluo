@@ -1,5 +1,6 @@
 import * as Y from "yjs";
 import { createNode, getFileText, snapshot } from "./ops";
+import { nameKey, validateName } from "./names";
 import type { TreeNode } from "./types";
 
 export type TextImportEntry = { path: string; content: string };
@@ -17,7 +18,11 @@ export function normalizeImportPath(path: string): string | null {
 
 export function isTextBuffer(buffer: ArrayBuffer): boolean {
   try {
-    new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+    const decoded = new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+    for (const character of decoded) {
+      const code = character.codePointAt(0)!;
+      if ((code < 32 && code !== 9 && code !== 10 && code !== 13) || (code >= 127 && code <= 159)) return false;
+    }
     return true;
   } catch {
     return false;
@@ -39,7 +44,7 @@ export function nodeForPath(doc: Y.Doc, path: string): TreeNode | null {
   const normalized = normalizeImportPath(path);
   if (!normalized) return null;
   const view = snapshot(doc);
-  return Array.from(view.nodes.values()).find((node) => pathForNode(view, node) === normalized) ?? null;
+  return Array.from(view.nodes.values()).find((node) => nameKey(pathForNode(view, node)) === nameKey(normalized)) ?? null;
 }
 
 function crc32(bytes: Uint8Array): number {
@@ -114,7 +119,7 @@ function parentForPath(doc: Y.Doc, parts: string[]): { ok: true; id: string | nu
   let parentId: string | null = null;
   for (const folderName of parts.slice(0, -1)) {
     const existing = Array.from(snapshot(doc).nodes.values()).find(
-      (node) => node.type === "folder" && node.parentId === parentId && node.name === folderName,
+      (node) => node.type === "folder" && node.parentId === parentId && nameKey(node.name) === nameKey(folderName),
     );
     if (existing) parentId = existing.id;
     else {
@@ -130,17 +135,42 @@ export function importEntry(doc: Y.Doc, entry: TextImportEntry, overwrite = fals
   const normalized = normalizeImportPath(entry.path);
   if (!normalized) return { ok: false, error: `Invalid import path: ${entry.path}` };
   const parts = normalized.split("/");
+  for (const part of parts) {
+    const valid = validateName(part);
+    if (!valid.ok) return { ok: false, error: `Invalid import path: ${valid.error}` };
+  }
+  const filename = parts.at(-1)!;
+  // Check duplicates before creating parent folders so a skipped file has no side effects.
+  const before = snapshot(doc);
+  const existingParent = parts.length === 1 ? null : Array.from(before.nodes.values()).find(
+    (node) => node.type === "folder" && nameKey(pathForNode(before, node)) === nameKey(parts.slice(0, -1).join("/")),
+  )?.id;
+  const duplicate = Array.from(before.nodes.values()).find(
+    (node) => node.type === "file" && node.parentId === existingParent && nameKey(node.name) === nameKey(filename),
+  );
+  if (duplicate && !overwrite) return { ok: false, error: `Duplicate file: ${normalized}` };
   const parent = parentForPath(doc, parts);
   if (!parent.ok) return parent;
-  const filename = parts.at(-1)!;
   const existing = Array.from(snapshot(doc).nodes.values()).find(
-    (node) => node.type === "file" && node.parentId === parent.id && node.name === filename,
+    (node) => node.type === "file" && node.parentId === parent.id && nameKey(node.name) === nameKey(filename),
   );
   if (existing) {
     if (!overwrite) return { ok: false, error: `Duplicate file: ${normalized}` };
     const text = getFileText(doc, existing.id);
-    text?.delete(0, text.length);
-    text?.insert(0, entry.content);
+    if (text) {
+      text.delete(0, text.length);
+      text.insert(0, entry.content);
+    } else {
+      const node = doc.getMap("tree").get(existing.id);
+      if (!(node instanceof Y.Map)) return { ok: false, error: "The file metadata is unavailable." };
+      doc.transact(() => {
+        node.delete("kind");
+        node.delete("assetId");
+        node.delete("mimeType");
+        node.delete("size");
+        doc.getMap("contents").set(existing.id, new Y.Text(entry.content));
+      });
+    }
     return { ok: true, id: existing.id };
   }
   const created = createNode(doc, { type: "file", name: filename, parentId: parent.id, content: entry.content });
@@ -155,11 +185,23 @@ export function importBinaryEntry(
   const normalized = normalizeImportPath(entry.path);
   if (!normalized) return { ok: false, error: `Invalid import path: ${entry.path}` };
   const parts = normalized.split("/");
+  for (const part of parts) {
+    const valid = validateName(part);
+    if (!valid.ok) return { ok: false, error: `Invalid import path: ${valid.error}` };
+  }
+  const filename = parts.at(-1)!;
+  const before = snapshot(doc);
+  const existingParent = parts.length === 1 ? null : Array.from(before.nodes.values()).find(
+    (node) => node.type === "folder" && nameKey(pathForNode(before, node)) === nameKey(parts.slice(0, -1).join("/")),
+  )?.id;
+  const duplicate = Array.from(before.nodes.values()).find(
+    (node) => node.type === "file" && node.parentId === existingParent && nameKey(node.name) === nameKey(filename),
+  );
+  if (duplicate && !overwrite) return { ok: false, error: `Duplicate file: ${normalized}` };
   const parent = parentForPath(doc, parts);
   if (!parent.ok) return parent;
-  const filename = parts.at(-1)!;
   const existing = Array.from(snapshot(doc).nodes.values()).find(
-    (node) => node.type === "file" && node.parentId === parent.id && node.name === filename,
+    (node) => node.type === "file" && node.parentId === parent.id && nameKey(node.name) === nameKey(filename),
   );
   if (existing) {
     if (!overwrite) return { ok: false, error: `Duplicate file: ${normalized}` };
