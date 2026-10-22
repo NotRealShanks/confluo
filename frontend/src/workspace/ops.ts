@@ -113,13 +113,21 @@ export function ensureWorkspace(doc: Y.Doc): boolean {
     return false;
   }
 
+  // New projects intentionally remain empty. Only migrate legacy content that
+  // was written to the pre-workspace Y.Text before multi-file support existed.
+  const legacyText = doc.getText(LEGACY_TEXT_KEY).toString();
+  if (!legacyText) {
+    meta.set("initialized", true);
+    return false;
+  }
+
   doc.transact(() => {
     const node = new Y.Map<unknown>();
     node.set("type", "file");
     node.set("name", "main.js");
     node.set("parentId", null);
     treeMap(doc).set(DEFAULT_FILE_ID, node);
-    contentsMap(doc).set(DEFAULT_FILE_ID, new Y.Text(doc.getText(LEGACY_TEXT_KEY).toString()));
+    contentsMap(doc).set(DEFAULT_FILE_ID, new Y.Text(legacyText));
     meta.set("initialized", true);
   });
   return true;

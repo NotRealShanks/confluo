@@ -7,18 +7,22 @@ import {
   ChevronRight,
   ChevronsDownUp,
   Copy,
+  Download,
+  FileArchive,
   Folder,
   FolderPlus,
   Pencil,
   Plus,
   RefreshCw,
   Trash2,
+  Upload,
 } from "lucide-react";
-import { createNode, deleteNode, renameNode, snapshot } from "./ops";
+import { createNode, deleteNode, getFileText, renameNode, snapshot } from "./ops";
 import { getContextMenuPosition } from "./contextMenu";
 import { descendantIds } from "./tree";
 import type { TreeNode } from "./types";
 import { fileIcon } from "./fileIcon";
+import { createZip, importEntry, isTextBuffer, pathForNode, workspaceEntries } from "./fileManagement";
 
 type WorkspaceExplorerProps = {
   doc: Y.Doc;
@@ -49,9 +53,12 @@ export default function WorkspaceExplorer({
   const [deleteNodeTarget, setDeleteNodeTarget] = useState<TreeNode | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [message, setMessage] = useState("");
+  const [importing, setImporting] = useState(false);
   const inlineInputRef = useRef<HTMLInputElement>(null);
   const lastCreateFileRequest = useRef(0);
   const explorerRef = useRef<HTMLElement>(null);
+  const importFilesRef = useRef<HTMLInputElement>(null);
+  const importFolderRef = useRef<HTMLInputElement>(null);
   const view = snapshot(doc);
 
   useEffect(() => {
@@ -176,24 +183,81 @@ export default function WorkspaceExplorer({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [canWrite, doc, selectedFileId, view.nodes]);
 
-  const pathFor = (node: TreeNode) => {
-    const names = [node.name];
-    let parent = node.parentId ? view.nodes.get(node.parentId) : undefined;
-    while (parent) {
-      names.unshift(parent.name);
-      parent = parent.parentId ? view.nodes.get(parent.parentId) : undefined;
-    }
-    return names.join("/");
-  };
-
   const copyPath = async (node: TreeNode, relative = false) => {
-    const path = pathFor(node);
+    const path = pathForNode(view, node);
     try {
       await navigator.clipboard.writeText(relative ? path : `workspace/${path}`);
     } catch {
       setMessage("Could not copy the path.");
     }
     setContextMenu(null);
+  };
+
+  const download = (node: TreeNode) => {
+    if (node.type !== "file") return;
+    const content = getFileText(doc, node.id)?.toString() ?? "";
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(new Blob([content], { type: "text/plain;charset=utf-8" }));
+    link.download = node.name;
+    link.click();
+    URL.revokeObjectURL(link.href);
+    setContextMenu(null);
+  };
+
+  const exportProject = () => {
+    const zip = createZip(workspaceEntries(doc));
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(new Blob([zip.buffer as ArrayBuffer], { type: "application/zip" }));
+    link.download = "workspace.zip";
+    link.click();
+    URL.revokeObjectURL(link.href);
+    setMessage("Project exported.");
+  };
+
+  const importFiles = async (files: FileList | null) => {
+    if (!files || importing) return;
+    setImporting(true);
+    let imported = 0;
+    try {
+      for (const file of Array.from(files)) {
+        const buffer = await file.arrayBuffer();
+        if (!isTextBuffer(buffer)) {
+          setMessage(`Skipped binary file "${file.name}". Binary storage is not supported yet.`);
+          continue;
+        }
+        const path = file.webkitRelativePath || file.name;
+        const result = importEntry(doc, {
+          path,
+          content: new TextDecoder("utf-8").decode(buffer),
+        }, false);
+        if (!result.ok && result.error.startsWith("Duplicate file:")) {
+          const choice = window.prompt(
+            `${result.error}\nType overwrite, skip, or rename.`,
+            "skip",
+          )?.trim().toLowerCase();
+          if (choice === "overwrite") {
+            const overwritten = importEntry(doc, {
+              path,
+              content: new TextDecoder("utf-8").decode(buffer),
+            }, true);
+            if (overwritten.ok) imported++;
+          } else if (choice === "rename") {
+            const renamed = window.prompt("Enter a new relative path:", `${path}.copy`);
+            if (renamed && importEntry(doc, {
+              path: renamed,
+              content: new TextDecoder("utf-8").decode(buffer),
+            }).ok) imported++;
+          }
+        } else if (result.ok) imported++;
+      }
+      if (imported > 0) setMessage(`Imported ${imported} file${imported === 1 ? "" : "s"}.`);
+    } catch {
+      setMessage("Import failed. Check the selected files and try again.");
+    } finally {
+      setImporting(false);
+      if (importFilesRef.current) importFilesRef.current.value = "";
+      if (importFolderRef.current) importFolderRef.current.value = "";
+    }
   };
 
   const remove = (node: TreeNode) => {
@@ -329,12 +393,30 @@ export default function WorkspaceExplorer({
             <button type="button" title="New folder" aria-label="New folder" onClick={() => create("folder", selectedFolderId)}><FolderPlus size={16} /></button>
             <button type="button" title="Refresh" aria-label="Refresh" onClick={() => setRevision((value) => value + 1)}><RefreshCw size={15} /></button>
             <button type="button" title="Collapse all" aria-label="Collapse all" onClick={() => setExpanded(new Set())}><ChevronsDownUp size={15} /></button>
+            <button type="button" title="Import files" aria-label="Import files" onClick={() => importFilesRef.current?.click()} disabled={importing}><Upload size={15} /></button>
+            <button type="button" title="Import folder" aria-label="Import folder" onClick={() => importFolderRef.current?.click()} disabled={importing}><Folder size={15} /></button>
+            <button type="button" title="Export project" aria-label="Export project" onClick={exportProject}><FileArchive size={15} /></button>
           </div>
         )}
       </div>
+      <input ref={importFilesRef} type="file" multiple hidden onChange={(event) => void importFiles(event.target.files)} />
+      <input ref={importFolderRef} type="file" multiple hidden
+        {...({ webkitdirectory: "", directory: "" } as Record<string, string>)}
+        onChange={(event) => void importFiles(event.target.files)} />
       {!ready ? (
         <p className="ide-explorer-message">Synchronizing workspace…</p>
       ) : (
+        <>
+        {view.nodes.size === 0 && <div className="ide-welcome" role="region" aria-label="Empty workspace">
+          <strong>Start working in this workspace</strong>
+          <span>Create a file, add a folder, or import an existing project.</span>
+          {canWrite && <div className="ide-welcome-actions">
+            <button type="button" onClick={() => beginNewFile(null)}><Plus size={14} /> New File</button>
+            <button type="button" onClick={() => create("folder", null)}><FolderPlus size={14} /> New Folder</button>
+            <button type="button" onClick={() => importFilesRef.current?.click()}><Upload size={14} /> Import Files</button>
+            <button type="button" onClick={() => importFolderRef.current?.click()}><Folder size={14} /> Import Folder</button>
+          </div>}
+        </div>}
         <ul className="ide-tree" onContextMenu={(event) => {
           if (event.target !== event.currentTarget) return;
           event.preventDefault();
@@ -345,6 +427,7 @@ export default function WorkspaceExplorer({
         }}>
           {renderNodes(null, 0)}
         </ul>
+        </>
       )}
       {view.truncated && <p className="ide-explorer-message warning">Some items are hidden because this workspace is at its limit.</p>}
       {message && <p className="ide-explorer-message" role="status">{message}</p>}
@@ -372,6 +455,7 @@ export default function WorkspaceExplorer({
               <div className="ide-menu-divider" />
               <button type="button" role="menuitem" onClick={() => copyPath(contextMenu.node!)}><Copy size={14} /> Copy Path</button>
               <button type="button" role="menuitem" onClick={() => copyPath(contextMenu.node!, true)}><Copy size={14} /> Copy Relative Path</button>
+              {contextMenu.node.type === "file" && <button type="button" role="menuitem" onClick={() => download(contextMenu.node!)}><Download size={14} /> Download</button>}
               <button type="button" role="menuitem" onClick={() => { explorerRef.current?.scrollIntoView({ block: "nearest" }); setContextMenu(null); }}><Folder size={14} /> Reveal in Workspace</button>
             </>
           )}

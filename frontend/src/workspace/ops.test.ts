@@ -187,11 +187,11 @@ describe("ensureWorkspace", () => {
     expect(snapshot(doc).nodes.size).toBe(0);
   });
 
-  it.each(["owner", "editor"])("initializes an empty workspace for an authorized %s", () => {
+  it.each(["owner", "editor"])("keeps a new empty workspace empty for an authorized %s", () => {
     const doc = new Y.Doc();
 
-    expect(ensureWorkspaceIfAllowed(doc, true)).toBe(true);
-    expect(snapshot(doc).nodes.size).toBe(1);
+    expect(ensureWorkspaceIfAllowed(doc, true)).toBe(false);
+    expect(snapshot(doc).nodes.size).toBe(0);
   });
 
   it("creates one main file, carrying over text from before multi-file existed", () => {
@@ -224,15 +224,15 @@ describe("ensureWorkspace", () => {
     expect(snapshot(doc).nodes.size).toBe(0);
   });
 
-  it("converges to a single main file when two people open a new project together", () => {
+  it("keeps a newly opened project empty when two people open it together", () => {
     const a = new Y.Doc();
     const b = new Y.Doc();
     ensureWorkspace(a);
     ensureWorkspace(b);
     sync(a, b);
 
-    expect(snapshot(a).nodes.size).toBe(1);
-    expect(snapshot(b).nodes.size).toBe(1);
+    expect(snapshot(a).nodes.size).toBe(0);
+    expect(snapshot(b).nodes.size).toBe(0);
   });
 
   it("does not reinitialize after a reconnect-style sync following deletion", () => {

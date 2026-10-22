@@ -528,9 +528,41 @@ button {
 
 .ide-editor-area {
   display: flex;
+  flex-direction: column;
   min-width: 0;
   min-height: 0;
   flex: 1;
+}
+
+.ide-editor-toolbar {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 10px;
+  border-bottom: 1px solid #d9dee7;
+  background: #fff;
+}
+
+.ide-run-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid #2563eb;
+  border-radius: 4px;
+  padding: 4px 10px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 12px;
+}
+
+.ide-run-button:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.ide-run-button:disabled {
+  cursor: not-allowed;
+  opacity: .55;
 }
 
 .ide-editor {
@@ -633,6 +665,54 @@ button {
 
 .ide-panel-empty strong {
   color: #6b7280;
+}
+
+.ide-output {
+  width: min(100%, 900px);
+  max-height: 92px;
+  margin: 0;
+  overflow: auto;
+  padding: 6px 10px;
+  color: #374151;
+  font: 12px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace;
+  text-align: left;
+  white-space: pre-wrap;
+}
+
+.ide-welcome {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 20px 12px;
+  padding: 16px;
+  border: 1px solid #dbeafe;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #4b5563;
+  font-size: 12px;
+}
+
+.ide-welcome strong {
+  color: #1e3a8a;
+  font-size: 13px;
+}
+
+.ide-welcome-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ide-welcome-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid #bfdbfe;
+  border-radius: 4px;
+  padding: 5px 7px;
+  background: #fff;
+  color: #1d4ed8;
+  font-size: 11px;
 }
 
 .ide-loading, .ide-error {

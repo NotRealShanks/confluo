@@ -29,6 +29,9 @@ import { ensureWorkspaceIfAllowed, snapshot } from "../workspace/ops";
 import WorkspaceExplorer from "../workspace/WorkspaceExplorer";
 import { useRoom } from "@liveblocks/react/suspense";
 import { initialTabState, tabReducer } from "../workspace/tabState";
+import { executeProject, type ExecutionResult } from "../api/execution";
+import { languageForFilename } from "../workspace/language";
+import { pathForNode, workspaceEntries } from "../workspace/fileManagement";
 import {
   SIDEBAR_DEFAULT_WIDTH,
   SIDEBAR_STEP,
@@ -50,8 +53,13 @@ function ActivityBar({ onToggleExplorer, explorerOpen }: { onToggleExplorer: () 
   );
 }
 
-function BottomPanel({ open, onToggle }: { open: boolean; onToggle: () => void }) {
-  const [tab, setTab] = useState<PanelTab>("terminal");
+function BottomPanel({ open, onToggle, output, running }: {
+  open: boolean;
+  onToggle: () => void;
+  output: string;
+  running: boolean;
+}) {
+  const [tab, setTab] = useState<PanelTab>("output");
   return (
     <section className={`ide-bottom-panel ${open ? "is-open" : "is-collapsed"}`} aria-label="Bottom panel">
       <div className="ide-panel-tabs">
@@ -66,12 +74,20 @@ function BottomPanel({ open, onToggle }: { open: boolean; onToggle: () => void }
           </button>
         ))}
       </div>
-      {open && <div className="ide-panel-empty"><Terminal size={24} /><strong>{tab === "terminal" ? "No terminal sessions" : tab === "output" ? "No output yet" : "No problems detected"}</strong><span>{tab === "terminal" ? "Terminal execution will be available in a future release." : "Activity will appear here when available."}</span></div>}
+      {open && <div className="ide-panel-empty">
+        {tab === "terminal" ? <Terminal size={24} /> : tab === "problems" ? <AlertCircle size={24} /> : null}
+        <strong>{running ? "Running…" : tab === "terminal" ? "No terminal sessions" : tab === "output" ? "Output" : "No problems detected"}</strong>
+        {tab === "output" ? <pre className="ide-output">{output || "Run a supported file to see output here."}</pre> : <span>{tab === "terminal" ? "Interactive terminal is deferred." : "Activity will appear here when available."}</span>}
+      </div>}
     </section>
   );
 }
 
-export function CollaborativeWorkspace({ canInitialize = true }: { canInitialize?: boolean }) {
+export function CollaborativeWorkspace({ projectId, canInitialize = true, canRun = true }: {
+  projectId: string;
+  canInitialize?: boolean;
+  canRun?: boolean;
+}) {
   const room = useRoom();
   const provider = getYjsProviderForRoom(room);
   const doc = provider.getYDoc();
@@ -83,6 +99,8 @@ export function CollaborativeWorkspace({ canInitialize = true }: { canInitialize
   const [availableWidth, setAvailableWidth] = useState(0);
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const [createFileRequest, setCreateFileRequest] = useState(0);
+  const [output, setOutput] = useState("");
+  const [running, setRunning] = useState(false);
   const workspaceRef = useRef<HTMLDivElement>(null);
   const sidebarRef = useRef<HTMLElement>(null);
   const resizeCleanupRef = useRef<(() => void) | null>(null);
@@ -187,6 +205,37 @@ export function CollaborativeWorkspace({ canInitialize = true }: { canInitialize
     }
   };
 
+  const runSelectedFile = async () => {
+    const node = selectedFileId ? view.nodes.get(selectedFileId) : undefined;
+    if (!node || node.type !== "file") {
+      setOutput("Select a source file before running.");
+      setPanelOpen(true);
+      return;
+    }
+    const language = languageForFilename(node.name);
+    if (!["java", "javascript", "typescript", "python", "c", "cpp"].includes(language)) {
+      setOutput(`Run is not supported for ${node.name}. HTML and CSS use a browser preview workflow.`);
+      setPanelOpen(true);
+      return;
+    }
+    setRunning(true);
+    setOutput(`Running ${node.name}…`);
+    setPanelOpen(true);
+    try {
+      const result: ExecutionResult = await executeProject(projectId, {
+        language,
+        entrypoint: pathForNode(view, node),
+        files: workspaceEntries(doc),
+      });
+      const status = result.timedOut ? "Timed out" : `Exited with code ${result.exitCode ?? "unknown"}`;
+      setOutput([result.stdout, result.stderr, status].filter(Boolean).join("\n"));
+    } catch (error) {
+      setOutput(error instanceof Error ? error.message : "Execution failed.");
+    } finally {
+      setRunning(false);
+    }
+  };
+
   return (
     <div ref={workspaceRef} className={`ide-workspace ${isResizingSidebar ? "is-resizing-sidebar" : ""}`}>
       <ActivityBar explorerOpen={explorerOpen} onToggleExplorer={() => setExplorerOpen((open) => !open)} />
@@ -224,6 +273,11 @@ export function CollaborativeWorkspace({ canInitialize = true }: { canInitialize
           {openFileIds.length === 0 && <span className="ide-tabs-empty">No files open</span>}
         </div>
         <div className="ide-editor-area">
+          <div className="ide-editor-toolbar">
+            <button type="button" className="ide-run-button" onClick={() => void runSelectedFile()} disabled={running || !canRun} title="Run selected file">
+              <Play size={14} /> {running ? "Running…" : "Run"}
+            </button>
+          </div>
           <Editor
             doc={doc}
             fileId={selectedFileId}
@@ -232,7 +286,7 @@ export function CollaborativeWorkspace({ canInitialize = true }: { canInitialize
             onCreateFile={canInitialize ? () => setCreateFileRequest((request) => request + 1) : undefined}
           />
         </div>
-        <BottomPanel open={panelOpen} onToggle={() => setPanelOpen((open) => !open)} />
+        <BottomPanel open={panelOpen} onToggle={() => setPanelOpen((open) => !open)} output={output} running={running} />
       </main>
     </div>
   );
@@ -275,7 +329,7 @@ function ProjectView({ id }: { id: string }) {
       <RoomErrorBoundary>
         <Room projectId={project.id}>
           <ProjectHeader project={project} />
-          <CollaborativeWorkspace canInitialize={project.role !== "VIEWER"} />
+          <CollaborativeWorkspace projectId={project.id} canInitialize={project.role !== "VIEWER"} canRun={project.role !== "VIEWER"} />
         </Room>
       </RoomErrorBoundary>
     </div>
