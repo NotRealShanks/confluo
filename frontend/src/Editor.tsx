@@ -5,6 +5,7 @@ import { MonacoBinding } from "y-monaco";
 import type { Awareness } from "y-protocols/awareness";
 import { useRoom } from "@liveblocks/react/suspense";
 import { getYjsProviderForRoom } from "@liveblocks/yjs";
+import { cssContentValue, safeCursorColor } from "./editorStyles";
 
 type UserState = { name: string; color: string; showName?: boolean };
 
@@ -88,15 +89,17 @@ export default function Editor({ name, color }: { name: string; color: string })
       awareness.getStates().forEach((state, clientId) => {
         const user = state.user as UserState | undefined;
         if (!user) return;
+        const userName = typeof user.name === "string" ? user.name : "";
+        const userColor = safeCursorColor(user.color);
 
         css += `
           .yRemoteSelection-${clientId}, .yRemoteSelectionHead-${clientId} {
-            --user-color: ${user.color};
+            --user-color: ${userColor};
           }
         `;
         css += `
           .yRemoteSelectionHead-${clientId}::after {
-            content: ${user.showName ? `"${user.name}"` : '""'};
+            content: ${user.showName ? cssContentValue(userName) : '""'};
           }
         `;
       });
