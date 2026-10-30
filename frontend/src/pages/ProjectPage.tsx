@@ -318,6 +318,7 @@ function ProjectHeader({ project }: { project: Project }) {
 
 function ProjectView({ id }: { id: string }) {
   const { state, reload } = useProject(id);
+  const [roomAttempt, setRoomAttempt] = useState(0);
   if (state.status === "loading") return <div className="ide-loading">Loading project…</div>;
   if (state.status === "error") {
     const notFound = state.error instanceof ApiError && state.error.status === 404;
@@ -326,8 +327,8 @@ function ProjectView({ id }: { id: string }) {
   const project = state.data;
   return (
     <div className="ide-shell">
-      <RoomErrorBoundary>
-        <Room projectId={project.id}>
+      <RoomErrorBoundary onRetry={() => setRoomAttempt((attempt) => attempt + 1)}>
+        <Room key={roomAttempt} projectId={project.id}>
           <ProjectHeader project={project} />
           <CollaborativeWorkspace projectId={project.id} canInitialize={project.role !== "VIEWER"} canRun={project.role !== "VIEWER"} />
         </Room>

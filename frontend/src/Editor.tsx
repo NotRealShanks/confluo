@@ -14,6 +14,7 @@ import { languageForFilename } from "./workspace/language";
 import { downloadAsset } from "./api/assets";
 
 type UserState = { name: string; color: string; showName?: boolean };
+type MountedEditor = { fileId: string | null | undefined; editor: editor.IStandaloneCodeEditor; monaco: Monaco };
 
 type EditorProps = {
   doc?: Y.Doc;
@@ -37,9 +38,10 @@ export default function Editor({
   const name = useSelf((me) => me.info.name);
   const color = colorFor(useSelf((me) => me.id));
   const readOnly = !useSelf((me) => me.canWrite);
-  const [editorInstance, setEditorInstance] = useState<editor.IStandaloneCodeEditor>();
-  const [monacoInstance, setMonacoInstance] = useState<Monaco>();
-  const [mountedFileId, setMountedFileId] = useState<string | null | undefined>(fileId);
+  const [mountedEditor, setMountedEditor] = useState<MountedEditor>();
+  const editorInstance = mountedEditor?.editor;
+  const monacoInstance = mountedEditor?.monaco;
+  const mountedFileId = mountedEditor?.fileId;
   const fileName = fileId && doc ? snapshot(doc).nodes.get(fileId)?.name : undefined;
   const fileNode = fileId && doc ? snapshot(doc).nodes.get(fileId) : undefined;
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
@@ -88,9 +90,13 @@ export default function Editor({
       showName: false,
     } satisfies UserState);
 
+    // A fast selection change can dispose the previous Monaco model before this
+    // effect runs. Do not turn that local render race into a room-level failure.
+    const model = editorInstance.getModel();
+    if (!model) return;
     const binding = new MonacoBinding(
       yText,
-      editorInstance.getModel()!,
+      model,
       new Set([editorInstance]),
       awareness
     );
@@ -216,9 +222,7 @@ export default function Editor({
               scrollBeyondLastLine: false,
             }}
             onMount={(editor, monaco) => {
-              setMountedFileId(fileId);
-              setEditorInstance(editor);
-              setMonacoInstance(monaco);
+              setMountedEditor({ fileId, editor, monaco });
             }}
           />
         </div>

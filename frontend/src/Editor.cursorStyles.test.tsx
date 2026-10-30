@@ -5,7 +5,7 @@ import * as Y from "yjs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import Editor from "./Editor";
 
-const shared = vi.hoisted(() => ({ doc: null as unknown, awareness: null as unknown }));
+const shared = vi.hoisted(() => ({ doc: null as unknown, awareness: null as unknown, model: {} as unknown, bindings: 0 }));
 
 vi.mock("@liveblocks/react/suspense", () => ({
   useRoom: () => ({}),
@@ -16,12 +16,13 @@ vi.mock("@liveblocks/yjs", () => ({
 }));
 vi.mock("y-monaco", () => ({
   MonacoBinding: class {
+    constructor() { shared.bindings++; }
     destroy() {}
   },
 }));
 vi.mock("@monaco-editor/react", async () => {
   const { useEffect } = await import("react");
-  const fakeEditor = { getModel: () => ({}), onDidChangeCursorSelection: () => ({ dispose: () => {} }) };
+  const fakeEditor = { getModel: () => shared.model, onDidChangeCursorSelection: () => ({ dispose: () => {} }) };
   const fakeMonaco = { editor: { CursorChangeReason: { Explicit: 3 } } };
   return {
     Editor: ({ onMount }: { onMount: (editor: unknown, monaco: unknown) => void }) => {
@@ -47,6 +48,8 @@ beforeEach(() => {
   const doc = new Y.Doc();
   shared.doc = doc;
   shared.awareness = new Awareness(doc);
+  shared.model = {};
+  shared.bindings = 0;
 });
 
 afterEach(() => {
@@ -55,6 +58,18 @@ afterEach(() => {
 });
 
 describe("remote cursor styles", () => {
+  it("does not create a binding for a Monaco model disposed during a file switch", () => {
+    shared.model = null;
+    const doc = shared.doc as Y.Doc;
+    doc.getMap("tree").set("file", new Y.Map());
+    const node = doc.getMap("tree").get("file") as Y.Map<unknown>;
+    node.set("type", "file"); node.set("name", "imported.js"); node.set("parentId", null);
+    doc.getMap("contents").set("file", new Y.Text("export {}"));
+
+    expect(() => render(<Editor doc={doc} fileId="file" workspaceReady />)).not.toThrow();
+    expect(shared.bindings).toBe(0);
+  });
+
   it("renders a legitimate collaborator's name and color", () => {
     render(<Editor />);
     publishRemote(101, { name: "Maya", color: "hsl(10 70% 45%)", showName: true });

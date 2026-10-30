@@ -70,4 +70,18 @@ describe("file management", () => {
     expect(snapshot(doc).nodes.get(text.id)?.assetId).toBeUndefined();
     expect(getFileText(doc, text.id)?.toString()).toBe("markdown text");
   });
+
+  it("imports a mixed 18-file folder without losing content or paths", () => {
+    const doc = new Y.Doc();
+    const entries = ["src/app.js", "src/main.cpp", "src/Main.java", "src/tool.py", "docs/readme.md", "docs/notes.txt"];
+    for (let index = 0; index < 18; index++) {
+      const path = entries[index % entries.length].replace(/\.(\w+)$/, `-${index}.$1`);
+      const result = importEntry(doc, { path, content: index === 3 ? "こんにちは" : `file ${index}` });
+      expect(result.ok).toBe(true);
+    }
+    const imported = workspaceTextEntries(doc);
+    expect(imported).toHaveLength(18);
+    expect(imported.map((entry) => entry.path)).toContain("src/app-0.js");
+    expect(imported.find((entry) => entry.content === "こんにちは")?.path).toBe("src/tool-3.py");
+  });
 });
