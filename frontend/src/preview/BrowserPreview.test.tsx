@@ -62,6 +62,8 @@ describe("BrowserPreview Component", () => {
     expect(sandbox).toContain("allow-scripts");
     expect(sandbox).toContain("allow-modals");
     expect(sandbox).toContain("allow-forms");
+    expect(sandbox).toContain("allow-popups");
+    expect(sandbox).toContain("allow-popups-to-escape-sandbox");
     expect(sandbox).not.toContain("allow-same-origin");
   });
 

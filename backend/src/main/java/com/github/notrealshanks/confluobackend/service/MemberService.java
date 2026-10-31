@@ -31,6 +31,7 @@ public class MemberService {
     private final ProjectService projectService;
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
+    private final LiveblocksAuthService liveblocksAuthService;
 
     public List<MemberResponse> list(String callerId, String projectId) {
         Project project = requireOwner(callerId, projectId);
@@ -90,6 +91,11 @@ public class MemberService {
         }
 
         saveMembers(project, project.getMembers().stream().filter(m -> !m.userId().equals(targetUserId)).toList());
+
+        // Revoke active Liveblocks session to terminate connection
+        if (liveblocksAuthService != null) {
+            liveblocksAuthService.revokeRoomAccess(projectId, targetUserId);
+        }
     }
 
     // Non-members get 404 from requireAccess; members without the right role get 403

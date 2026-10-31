@@ -10,6 +10,7 @@ import {
   GitBranch,
   Maximize2,
   Minimize2,
+  MessageSquare,
   MoreHorizontal,
   PanelBottom,
   Play,
@@ -40,6 +41,7 @@ import { executeProject, type ExecutionResult } from "../api/execution";
 import { getFileCapability } from "../workspace/fileCapabilities";
 import { pathForNode, workspaceTextEntries } from "../workspace/fileManagement";
 import { BrowserPreview } from "../preview/BrowserPreview";
+import { ProjectChatPanel } from "../chat/ProjectChatPanel";
 import {
   SIDEBAR_DEFAULT_WIDTH,
   SIDEBAR_STEP,
@@ -61,11 +63,17 @@ function ActivityBar({
   explorerOpen,
   onToggleSettings,
   settingsOpen,
+  onToggleChat,
+  chatOpen,
+  isGuest = false,
 }: {
   onToggleExplorer: () => void;
   explorerOpen: boolean;
   onToggleSettings?: () => void;
   settingsOpen?: boolean;
+  onToggleChat?: () => void;
+  chatOpen?: boolean;
+  isGuest?: boolean;
 }) {
   return (
     <nav className="ide-activity-bar" aria-label="Workspace navigation">
@@ -79,6 +87,18 @@ function ActivityBar({
       >
         <Files size={21} />
       </button>
+      {!isGuest && onToggleChat && (
+        <button
+          className={chatOpen ? "is-active" : ""}
+          type="button"
+          aria-label="Chat"
+          aria-pressed={Boolean(chatOpen)}
+          title="Project Communication (Chat & Activity)"
+          onClick={onToggleChat}
+        >
+          <MessageSquare size={21} />
+        </button>
+      )}
       <button
         type="button"
         className="is-disabled"
@@ -333,10 +353,16 @@ function BottomPanel({ open, onToggle, output, running, initialHeight = PANEL_DE
   );
 }
 
-export function CollaborativeWorkspace({ projectId, canInitialize = true, canRun = true }: {
+export function CollaborativeWorkspace({
+  projectId,
+  canInitialize = true,
+  canRun = true,
+  isGuest = false,
+}: {
   projectId: string;
   canInitialize?: boolean;
   canRun?: boolean;
+  isGuest?: boolean;
 }) {
   const room = useRoom();
   const provider = getYjsProviderForRoom(room);
@@ -347,6 +373,7 @@ export function CollaborativeWorkspace({ projectId, canInitialize = true, canRun
   const { isSettingsOpen, toggleSettings } = useSettings();
   const [panelOpen, setPanelOpen] = useState(false);
   const [explorerOpen, setExplorerOpen] = useState(true);
+  const [chatOpen, setChatOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
   const [availableWidth, setAvailableWidth] = useState(0);
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
@@ -616,7 +643,15 @@ export function CollaborativeWorkspace({ projectId, canInitialize = true, canRun
 
   return (
     <div ref={workspaceRef} className={`ide-workspace ${isResizingSidebar ? "is-resizing-sidebar" : ""}`}>
-      <ActivityBar explorerOpen={explorerOpen} onToggleExplorer={() => setExplorerOpen((open) => !open)} settingsOpen={isSettingsOpen} onToggleSettings={toggleSettings} />
+      <ActivityBar
+        explorerOpen={explorerOpen}
+        onToggleExplorer={() => setExplorerOpen((open) => !open)}
+        settingsOpen={isSettingsOpen}
+        onToggleSettings={toggleSettings}
+        chatOpen={chatOpen}
+        onToggleChat={() => setChatOpen((open) => !open)}
+        isGuest={isGuest}
+      />
       {explorerOpen && <aside ref={sidebarRef} className="ide-sidebar" style={{ width: `${sidebarWidth}px` }}>
         <WorkspaceExplorer
           doc={doc}
@@ -639,6 +674,11 @@ export function CollaborativeWorkspace({ projectId, canInitialize = true, canRun
         onPointerDown={startSidebarResize}
         onKeyDown={resizeSidebarWithKeyboard}
       />}
+      {chatOpen && !isGuest && (
+        <aside className="ide-chat-sidebar" aria-label="Project chat and activity">
+          <ProjectChatPanel projectId={projectId} onClose={() => setChatOpen(false)} />
+        </aside>
+      )}
       <main className="ide-main">
         <div className="ide-editor-header">
           <div

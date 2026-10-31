@@ -141,6 +141,32 @@ const RUNTIME_INJECTION_SCRIPT = `
     } catch (_) {}
   });
 
+  // Helper for internal workspace navigation
+  window.navigateTo = function(path) {
+    if (typeof path === 'string') {
+      window.parent.postMessage({
+        type: 'CONFLUO_PREVIEW_NAVIGATE',
+        href: path
+      }, '*');
+    }
+  };
+
+  // Intercept window.open
+  var originalOpen = window.open;
+  window.open = function(url, target, features) {
+    if (typeof url === 'string') {
+      var isExternal = url.indexOf('://') !== -1 || url.startsWith('//');
+      if (!isExternal && !url.startsWith('#') && !url.startsWith('javascript:')) {
+        window.parent.postMessage({
+          type: 'CONFLUO_PREVIEW_NAVIGATE',
+          href: url
+        }, '*');
+        return null;
+      }
+    }
+    return originalOpen ? originalOpen.call(window, url, target || '_blank', features) : null;
+  };
+
   document.addEventListener('click', function(event) {
     var target = event.target;
     while (target && target.tagName !== 'A') {
@@ -149,13 +175,19 @@ const RUNTIME_INJECTION_SCRIPT = `
     if (!target) return;
     var href = target.getAttribute('href');
     if (!href) return;
+
+    // External link: ensure it opens in a new tab safely
+    if (href.indexOf('://') !== -1 || href.startsWith('//')) {
+      target.setAttribute('target', '_blank');
+      target.setAttribute('rel', 'noopener noreferrer');
+      return;
+    }
+
     if (
       href.startsWith('#') ||
       href.startsWith('javascript:') ||
       href.startsWith('mailto:') ||
-      href.startsWith('tel:') ||
-      href.indexOf('://') !== -1 ||
-      href.startsWith('//')
+      href.startsWith('tel:')
     ) {
       return;
     }

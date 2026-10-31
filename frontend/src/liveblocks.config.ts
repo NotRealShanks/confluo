@@ -11,6 +11,10 @@ declare global {
         avatar?: string;
       };
     };
+    RoomEvent: {
+      type: "CHAT_MESSAGE";
+      messageId: string;
+    };
   }
 }
 

@@ -332,7 +332,7 @@ export function BrowserPreview({
           key={`${currentPath}-${refreshTrigger}`}
           title="Browser Preview"
           srcDoc={bundleResult.html}
-          sandbox="allow-scripts allow-modals allow-forms"
+          sandbox="allow-scripts allow-modals allow-forms allow-popups allow-popups-to-escape-sandbox"
           className="w-full h-full border-0"
           data-testid="browser-preview-iframe"
         />

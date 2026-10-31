@@ -2,6 +2,7 @@ package com.github.notrealshanks.confluobackend.service;
 
 import java.net.http.HttpClient;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -80,6 +81,23 @@ public class LiveblocksAuthService {
                 "userId", userId,
                 "userInfo", userInfo,
                 "permissions", Map.of(room, permissionsFor(role))));
+    }
+
+    public void revokeRoomAccess(String room, String userId) {
+        try {
+            Map<String, Object> body = Map.of(
+                    "usersAccesses", Collections.singletonMap(userId, null));
+            restClient.post()
+                    .uri("/v2/rooms/{roomId}", room)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body)
+                    .retrieve()
+                    .toBodilessEntity();
+            log.info("Revoked Liveblocks room access for user {} in room {}", userId, room);
+        } catch (Exception e) {
+            log.warn("Failed to revoke Liveblocks room access for user {} in room {}: {}",
+                    userId, room, e.getMessage());
+        }
     }
 
     public LiveblocksTokenResponse authorizeGuest(GuestPrincipal guest, String room) {
