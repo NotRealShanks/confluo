@@ -1,0 +1,23 @@
+{
+  "name": "confluo-runner",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "E2B-powered code execution microservice for Confluo",
+  "main": "src/index.ts",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "dev": "tsx watch src/index.ts"
+  },
+  "dependencies": {
+    "@bufbuild/protobuf": "^2.16.0",
+    "dotenv": "^16.4.7",
+    "e2b": "^1.0.5",
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

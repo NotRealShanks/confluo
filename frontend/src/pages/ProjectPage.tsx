@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
+import * as Y from "yjs";
 import { getYjsProviderForRoom } from "@liveblocks/yjs";
 import {
   AlertCircle,
   Braces,
   ChevronDown,
+  Columns2,
   Compass,
+  Eraser,
   Files,
   GitBranch,
   Maximize2,
@@ -42,6 +45,8 @@ import { getFileCapability } from "../workspace/fileCapabilities";
 import { pathForNode, workspaceTextEntries } from "../workspace/fileManagement";
 import { BrowserPreview } from "../preview/BrowserPreview";
 import { ProjectChatPanel } from "../chat/ProjectChatPanel";
+import { TerminalPanel } from "../terminal/TerminalPanel";
+import type { TreeView } from "../workspace/tree";
 import {
   SIDEBAR_DEFAULT_WIDTH,
   SIDEBAR_STEP,
@@ -143,12 +148,26 @@ function ActivityBar({
   );
 }
 
-function BottomPanel({ open, onToggle, output, running, initialHeight = PANEL_DEFAULT_HEIGHT }: {
+function BottomPanel({
+  open,
+  onToggle,
+  output,
+  running,
+  initialHeight = PANEL_DEFAULT_HEIGHT,
+  doc,
+  view,
+  projectId,
+  onClearOutput,
+}: {
   open: boolean;
   onToggle: () => void;
   output: string;
   running: boolean;
   initialHeight?: number;
+  doc?: Y.Doc;
+  view?: TreeView;
+  projectId?: string;
+  onClearOutput?: () => void;
 }) {
   const [tab, setTab] = useState<PanelTab>("output");
   const [panelHeight, setPanelHeight] = useState(initialHeight);
@@ -327,25 +346,42 @@ function BottomPanel({ open, onToggle, output, running, initialHeight = PANEL_DE
         </div>
       </div>
       {open && (
-        <div className="ide-panel-empty">
-          {tab === "terminal" ? <Terminal size={24} /> : tab === "problems" ? <AlertCircle size={24} /> : null}
-          <strong>
-            {running
-              ? "Running…"
-              : tab === "terminal"
-                ? "Interactive terminal is deferred"
-                : tab === "output"
-                  ? "Output"
-                  : "No problems detected"}
-          </strong>
-          {tab === "output" ? (
-            <pre className="ide-output">{output || "Run a supported file to see output here."}</pre>
+        <div className="ide-panel-body flex-1 min-h-0 w-full overflow-hidden flex flex-col">
+          {tab === "terminal" && doc && view && projectId ? (
+            <TerminalPanel projectId={projectId} doc={doc} view={view} />
+          ) : tab === "output" ? (
+            <div className="flex flex-col h-full w-full bg-[#1e1e1e] text-[#d4d4d4] font-mono text-xs overflow-hidden">
+              <div className="flex items-center justify-between px-3 py-1 bg-[#252526] border-b border-[#2d2d2d] shrink-0 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="text-[#858585]">Execution Console</span>
+                  {running && (
+                    <span className="text-[11px] text-blue-400 bg-blue-950/60 border border-blue-800 px-1.5 py-0.5 rounded animate-pulse">
+                      Running…
+                    </span>
+                  )}
+                </div>
+                {onClearOutput && (
+                  <button
+                    type="button"
+                    onClick={onClearOutput}
+                    className="p-1 rounded text-[#858585] hover:text-white hover:bg-[#333] transition-colors"
+                    title="Clear Output"
+                    aria-label="Clear Output"
+                  >
+                    <Eraser size={13} />
+                  </button>
+                )}
+              </div>
+              <pre className="flex-1 p-3 overflow-auto font-mono text-xs text-[#cccccc] leading-relaxed whitespace-pre-wrap select-text m-0">
+                {output || "Run a supported file to see output here."}
+              </pre>
+            </div>
           ) : (
-            <span>
-              {tab === "terminal"
-                ? "Interactive terminal is deferred. Use the Run button in the editor header to execute programs."
-                : "Activity will appear here when available."}
-            </span>
+            <div className="ide-panel-empty">
+              <AlertCircle size={24} />
+              <strong>No problems detected</strong>
+              <span>No compilation or runtime errors in the active workspace.</span>
+            </div>
           )}
         </div>
       )}
@@ -374,6 +410,8 @@ export function CollaborativeWorkspace({
   const [panelOpen, setPanelOpen] = useState(false);
   const [explorerOpen, setExplorerOpen] = useState(true);
   const [chatOpen, setChatOpen] = useState(false);
+  const [isSplit, setIsSplit] = useState(false);
+  const [splitFileId, setSplitFileId] = useState<string | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
   const [availableWidth, setAvailableWidth] = useState(0);
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
@@ -771,6 +809,24 @@ export function CollaborativeWorkspace({
             >
               <PanelBottom size={15} />
             </button>
+            <button
+              type="button"
+              className={`ide-action-button ${isSplit ? "is-active" : ""}`}
+              onClick={() => {
+                if (!isSplit) {
+                  setIsSplit(true);
+                  const otherFile = openFileIds.find((id) => id !== selectedFileId);
+                  setSplitFileId(otherFile || selectedFileId || null);
+                } else {
+                  setIsSplit(false);
+                }
+              }}
+              title={isSplit ? "Close split editor" : "Split editor right"}
+              aria-label={isSplit ? "Close split editor" : "Split editor right"}
+              aria-pressed={isSplit}
+            >
+              <Columns2 size={15} />
+            </button>
             <div className="ide-more-actions-container" ref={moreMenuRef}>
               <button
                 type="button"
@@ -816,32 +872,116 @@ export function CollaborativeWorkspace({
         </div>
         <div className="ide-editor-area" ref={editorAreaRef}>
           {(!previewOpen || !previewMaximized) && (
-            <div
-              className="ide-editor-pane"
-              style={{
-                flex: previewOpen ? `0 0 ${100 - previewWidthPercent}%` : "1 1 0%",
-                width: previewOpen ? `${100 - previewWidthPercent}%` : "100%",
-                minWidth: 0,
-                minHeight: 0,
-                height: "100%",
-                display: "flex",
-                flexDirection: "column",
-              }}
-            >
-              <EditorErrorBoundary
-                fileName={selectedFileId ? view.nodes.get(selectedFileId)?.name : undefined}
-                onReset={() => selectFile("")}
+            isSplit ? (
+              <div className="flex-1 flex min-w-0 min-h-0 h-full w-full">
+                <div
+                  className="ide-editor-pane"
+                  style={{
+                    flex: "1 1 0%",
+                    width: "50%",
+                    minWidth: 0,
+                    minHeight: 0,
+                    height: "100%",
+                    display: "flex",
+                    flexDirection: "column",
+                  }}
+                >
+                  <EditorErrorBoundary
+                    fileName={selectedFileId ? view.nodes.get(selectedFileId)?.name : undefined}
+                    onReset={() => selectFile("")}
+                  >
+                    <Editor
+                      doc={doc}
+                      projectId={projectId}
+                      fileId={selectedFileId}
+                      workspaceReady={ready}
+                      emptyWorkspace={view.nodes.size === 0}
+                      onCreateFile={canInitialize ? () => setCreateFileRequest((request) => request + 1) : undefined}
+                    />
+                  </EditorErrorBoundary>
+                </div>
+                <div className="ide-preview-resizer" role="separator" aria-orientation="vertical" style={{ cursor: "col-resize" }} />
+                <div
+                  className="ide-editor-pane"
+                  style={{
+                    flex: "1 1 0%",
+                    width: "50%",
+                    minWidth: 0,
+                    minHeight: 0,
+                    height: "100%",
+                    display: "flex",
+                    flexDirection: "column",
+                    borderLeft: "1px solid #2d2d30",
+                  }}
+                >
+                  <div className="flex items-center justify-between px-3 py-1.5 bg-[#252526] border-b border-[#2d2d2d] text-xs text-[#cccccc] shrink-0">
+                    <div className="flex items-center gap-1.5 font-medium">
+                      <span className="text-[#858585]">Split:</span>
+                      <select
+                        value={splitFileId || ""}
+                        onChange={(e) => setSplitFileId(e.target.value || null)}
+                        className="bg-[#1e1e1e] border border-[#3c3c3c] text-white rounded px-2 py-0.5 text-xs focus:outline-none"
+                      >
+                        {openFileIds.map((id) => (
+                          <option key={id} value={id}>
+                            {view.nodes.get(id)?.name || id}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsSplit(false)}
+                      className="p-1 rounded text-[#858585] hover:text-white hover:bg-[#333] transition-colors"
+                      title="Close Split"
+                      aria-label="Close Split"
+                    >
+                      <X size={13} />
+                    </button>
+                  </div>
+                  <EditorErrorBoundary
+                    fileName={splitFileId ? view.nodes.get(splitFileId)?.name : undefined}
+                    onReset={() => setSplitFileId(null)}
+                  >
+                    <Editor
+                      doc={doc}
+                      projectId={projectId}
+                      fileId={splitFileId || selectedFileId}
+                      workspaceReady={ready}
+                      emptyWorkspace={view.nodes.size === 0}
+                      onCreateFile={canInitialize ? () => setCreateFileRequest((request) => request + 1) : undefined}
+                    />
+                  </EditorErrorBoundary>
+                </div>
+              </div>
+            ) : (
+              <div
+                className="ide-editor-pane"
+                style={{
+                  flex: previewOpen ? `0 0 ${100 - previewWidthPercent}%` : "1 1 0%",
+                  width: previewOpen ? `${100 - previewWidthPercent}%` : "100%",
+                  minWidth: 0,
+                  minHeight: 0,
+                  height: "100%",
+                  display: "flex",
+                  flexDirection: "column",
+                }}
               >
-                <Editor
-                  doc={doc}
-                  projectId={projectId}
-                  fileId={selectedFileId}
-                  workspaceReady={ready}
-                  emptyWorkspace={view.nodes.size === 0}
-                  onCreateFile={canInitialize ? () => setCreateFileRequest((request) => request + 1) : undefined}
-                />
-              </EditorErrorBoundary>
-            </div>
+                <EditorErrorBoundary
+                  fileName={selectedFileId ? view.nodes.get(selectedFileId)?.name : undefined}
+                  onReset={() => selectFile("")}
+                >
+                  <Editor
+                    doc={doc}
+                    projectId={projectId}
+                    fileId={selectedFileId}
+                    workspaceReady={ready}
+                    emptyWorkspace={view.nodes.size === 0}
+                    onCreateFile={canInitialize ? () => setCreateFileRequest((request) => request + 1) : undefined}
+                  />
+                </EditorErrorBoundary>
+              </div>
+            )
           )}
           {previewOpen && !previewMaximized && (
             <div
@@ -881,7 +1021,16 @@ export function CollaborativeWorkspace({
             </div>
           )}
         </div>
-        <BottomPanel open={panelOpen} onToggle={() => setPanelOpen((open) => !open)} output={output} running={running} />
+        <BottomPanel
+          open={panelOpen}
+          onToggle={() => setPanelOpen((open) => !open)}
+          output={output}
+          running={running}
+          doc={doc}
+          view={view}
+          projectId={projectId}
+          onClearOutput={() => setOutput("")}
+        />
       </main>
       <SettingsPanel />
     </div>

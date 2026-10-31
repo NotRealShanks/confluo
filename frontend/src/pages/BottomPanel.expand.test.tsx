@@ -243,9 +243,10 @@ describe("Terminal / BottomPanel Expansion, Layout & Accessibility", () => {
     // Switch to Terminal tab
     fireEvent.click(screen.getByTitle(/Terminal/i));
 
-    // Clearly states that interactive terminal is deferred and guides user to Run button
-    expect(screen.getByText("Interactive terminal is deferred")).toBeDefined();
-    expect(screen.getByText(/Use the Run button in the editor header/i)).toBeDefined();
+    // Verifies the interactive cloud terminal is rendered with prompt and sessions
+    expect(screen.getAllByText(/confluo:~\/project\$/).length).toBeGreaterThan(0);
+    expect(screen.getByTitle("New Terminal")).toBeDefined();
+    expect(screen.getByText("1: bash")).toBeDefined();
   });
 
   it("ensures the editor area is rendered and visible alongside the bottom panel", () => {
