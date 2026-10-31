@@ -73,10 +73,17 @@ export default function WorkspaceExplorer({
     return () => doc.off("update", onUpdate);
   }, [doc]);
 
+  const autoSelectedInitialRef = useRef(false);
+
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || autoSelectedInitialRef.current) return;
     const firstFile = Array.from(view.nodes.values()).find((node) => node.type === "file");
-    if (!selectedFileId && firstFile) onSelectFile(firstFile.id);
+    if (!selectedFileId && firstFile) {
+      autoSelectedInitialRef.current = true;
+      onSelectFile(firstFile.id);
+    } else if (selectedFileId) {
+      autoSelectedInitialRef.current = true;
+    }
   }, [ready, revision, selectedFileId, onSelectFile, view.nodes]);
 
   useEffect(() => {

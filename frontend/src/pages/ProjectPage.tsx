@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import { getYjsProviderForRoom } from "@liveblocks/yjs";
 import {
@@ -7,6 +7,9 @@ import {
   ChevronDown,
   Files,
   GitBranch,
+  Maximize2,
+  Minimize2,
+  MoreHorizontal,
   PanelBottom,
   Play,
   Search,
@@ -41,6 +44,12 @@ import {
   clampSidebarWidth,
   sidebarWidthBounds,
 } from "./sidebarResize";
+import {
+  PANEL_DEFAULT_HEIGHT,
+  PANEL_STEP,
+  clampPanelHeight,
+  panelHeightBounds,
+} from "./panelResize";
 
 type PanelTab = "terminal" | "output" | "problems";
 
@@ -75,16 +84,142 @@ function ActivityBar({
   );
 }
 
-function BottomPanel({ open, onToggle, output, running }: {
+function BottomPanel({ open, onToggle, output, running, initialHeight = PANEL_DEFAULT_HEIGHT }: {
   open: boolean;
   onToggle: () => void;
   output: string;
   running: boolean;
+  initialHeight?: number;
 }) {
   const [tab, setTab] = useState<PanelTab>("output");
+  const [panelHeight, setPanelHeight] = useState(initialHeight);
+  const [availableHeight, setAvailableHeight] = useState(600);
+  const [isMaximized, setIsMaximized] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+  const panelRef = useRef<HTMLElement>(null);
+  const preMaximizeHeightRef = useRef(initialHeight);
+  const resizeCleanupRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    const parent = panelRef.current?.parentElement;
+    if (!parent) return;
+    const update = () => {
+      if (parent.clientHeight > 0) {
+        setAvailableHeight(parent.clientHeight);
+      }
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(parent);
+    return () => observer.disconnect();
+  }, []);
+
+  const bounds = panelHeightBounds(availableHeight);
+
+  const stopPanelResize = useCallback(() => {
+    resizeCleanupRef.current?.();
+    resizeCleanupRef.current = null;
+    setIsResizing(false);
+  }, []);
+
+  const startPanelResize = (event: React.PointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    stopPanelResize();
+    setIsResizing(true);
+    const panel = panelRef.current;
+    if (!panel) return;
+    const initialBottom = panel.getBoundingClientRect().bottom;
+
+    const onMove = (moveEvent: PointerEvent) => {
+      const newHeight = clampPanelHeight(initialBottom - moveEvent.clientY, availableHeight);
+      setPanelHeight(newHeight);
+      if (isMaximized) setIsMaximized(false);
+    };
+
+    const onUp = () => stopPanelResize();
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    resizeCleanupRef.current = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+  };
+
+  useEffect(() => () => {
+    resizeCleanupRef.current?.();
+  }, []);
+
+  useEffect(() => {
+    if (isResizing) {
+      document.body.classList.add("is-resizing-panel");
+      return () => {
+        document.body.classList.remove("is-resizing-panel");
+      };
+    }
+  }, [isResizing]);
+
+  const toggleMaximize = () => {
+    if (isMaximized) {
+      setIsMaximized(false);
+      setPanelHeight(preMaximizeHeightRef.current || PANEL_DEFAULT_HEIGHT);
+    } else {
+      preMaximizeHeightRef.current = panelHeight;
+      setIsMaximized(true);
+      const currentBounds = panelHeightBounds(availableHeight);
+      setPanelHeight(currentBounds.max);
+    }
+  };
+
+  const resizeWithKeyboard = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const currentBounds = panelHeightBounds(availableHeight);
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      if (isMaximized) setIsMaximized(false);
+      setPanelHeight((h) => clampPanelHeight(h + PANEL_STEP, availableHeight));
+    } else if (event.key === "ArrowDown") {
+      event.preventDefault();
+      if (isMaximized) setIsMaximized(false);
+      setPanelHeight((h) => clampPanelHeight(h - PANEL_STEP, availableHeight));
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      setIsMaximized(false);
+      setPanelHeight(currentBounds.min);
+    } else if (event.key === "End") {
+      event.preventDefault();
+      setIsMaximized(true);
+      setPanelHeight(currentBounds.max);
+    }
+  };
+
   return (
-    <section className={`ide-bottom-panel ${open ? "is-open" : "is-collapsed"}`} aria-label="Bottom panel">
-      <div className="ide-panel-tabs">
+    <section
+      ref={panelRef}
+      className={`ide-bottom-panel ${open ? "is-open" : "is-collapsed"} ${isMaximized ? "is-maximized" : ""} ${isResizing ? "is-resizing" : ""}`}
+      style={open ? { height: `${panelHeight}px` } : undefined}
+      aria-label="Bottom panel"
+    >
+      {open && (
+        <div
+          className="ide-panel-resize-handle"
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label="Resize Bottom panel"
+          aria-valuemin={bounds.min}
+          aria-valuemax={bounds.max}
+          aria-valuenow={panelHeight}
+          tabIndex={0}
+          onPointerDown={startPanelResize}
+          onKeyDown={resizeWithKeyboard}
+        />
+      )}
+      <div
+        className="ide-panel-tabs"
+        onDoubleClick={(e) => {
+          if ((e.target as HTMLElement).closest("button")) return;
+          if (open) toggleMaximize();
+        }}
+      >
         <button type="button" className="ide-panel-toggle" onClick={onToggle} aria-label={open ? "Collapse panel" : "Open panel"}>
           <PanelBottom size={16} />
         </button>
@@ -95,6 +230,29 @@ function BottomPanel({ open, onToggle, output, running }: {
             {item === "problems" && <span className="ide-panel-count">0</span>}
           </button>
         ))}
+        <div className="ide-panel-spacer" />
+        <div className="ide-panel-tabs-actions">
+          {open && (
+            <button
+              type="button"
+              className="ide-panel-action-btn"
+              onClick={toggleMaximize}
+              title={isMaximized ? "Restore panel size" : "Maximize panel size"}
+              aria-label={isMaximized ? "Restore panel size" : "Maximize panel size"}
+            >
+              {isMaximized ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+            </button>
+          )}
+          <button
+            type="button"
+            className="ide-panel-action-btn"
+            onClick={onToggle}
+            title={open ? "Close panel" : "Open panel"}
+            aria-label={open ? "Close panel" : "Open panel"}
+          >
+            <X size={14} />
+          </button>
+        </div>
       </div>
       {open && <div className="ide-panel-empty">
         {tab === "terminal" ? <Terminal size={24} /> : tab === "problems" ? <AlertCircle size={24} /> : null}
@@ -125,9 +283,15 @@ export function CollaborativeWorkspace({ projectId, canInitialize = true, canRun
   const [createFileRequest, setCreateFileRequest] = useState(0);
   const [output, setOutput] = useState("");
   const [running, setRunning] = useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
   const workspaceRef = useRef<HTMLDivElement>(null);
   const sidebarRef = useRef<HTMLElement>(null);
   const resizeCleanupRef = useRef<(() => void) | null>(null);
+  const tabsContainerRef = useRef<HTMLDivElement>(null);
+  const activeTabRef = useRef<HTMLDivElement>(null);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
   const view = snapshot(doc);
 
   useEffect(() => {
@@ -222,6 +386,67 @@ export function CollaborativeWorkspace({ projectId, canInitialize = true, canRun
     return () => doc.off("update", handleDocUpdate);
   }, [doc]);
 
+  const checkScroll = useCallback(() => {
+    const el = tabsContainerRef.current;
+    if (!el) return;
+    const { scrollLeft, scrollWidth, clientWidth } = el;
+    setCanScrollLeft(scrollLeft > 1);
+    setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 1);
+  }, []);
+
+  useEffect(() => {
+    checkScroll();
+  }, [openFileIds, selectedFileId, checkScroll]);
+
+  useEffect(() => {
+    const el = tabsContainerRef.current;
+    if (!el) return;
+    if (typeof ResizeObserver === "function") {
+      const observer = new ResizeObserver(() => checkScroll());
+      observer.observe(el);
+      return () => observer.disconnect();
+    }
+  }, [checkScroll]);
+
+  useEffect(() => {
+    if (activeTabRef.current) {
+      activeTabRef.current.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+    }
+  }, [selectedFileId]);
+
+  useEffect(() => {
+    if (!moreMenuOpen) return;
+    const handlePointerDown = (e: PointerEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+        setMoreMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setMoreMenuOpen(false);
+      }
+    };
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [moreMenuOpen]);
+
+  const handleTabsScroll = () => {
+    checkScroll();
+  };
+
+  const handleTabsWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    const el = tabsContainerRef.current;
+    if (!el) return;
+    if (e.deltaY !== 0 && e.deltaX === 0) {
+      el.scrollLeft += e.deltaY;
+      checkScroll();
+    }
+  };
+
   const selectFile = (id: string) => {
     if (id) {
       dispatchTabs({ type: "select", fileId: id });
@@ -287,25 +512,128 @@ export function CollaborativeWorkspace({ projectId, canInitialize = true, canRun
         onKeyDown={resizeSidebarWithKeyboard}
       />}
       <main className="ide-main">
-        <div className="ide-tabs" role="tablist" aria-label="Open files">
-          {openFileIds.map((id) => {
-            const node = view.nodes.get(id);
-            if (!node) return null;
-            return <div key={id} className={`ide-tab ${id === selectedFileId ? "is-active" : ""}`} role="tab" aria-selected={id === selectedFileId}>
-              <button type="button" onClick={() => dispatchTabs({ type: "select", fileId: id })}>{fileIcon(node.name, node.type)}{view.displayNames.get(id) ?? node.name}</button>
-              <button type="button" className="ide-tab-close" aria-label={`Close ${node.name}`} onClick={() => dispatchTabs({ type: "close", fileId: id })}><X size={14} /></button>
-            </div>;
-          })}
-          {openFileIds.length === 0 && <span className="ide-tabs-empty">No files open</span>}
-        </div>
-        <div className="ide-editor-area">
-          <div className="ide-editor-toolbar">
+        <div className="ide-editor-header">
+          <div
+            className={`ide-tabs-container ${canScrollLeft ? "can-scroll-left" : ""} ${canScrollRight ? "can-scroll-right" : ""}`}
+          >
+            <div
+              ref={tabsContainerRef}
+              className="ide-tabs-scroll-area"
+              onScroll={handleTabsScroll}
+              onWheel={handleTabsWheel}
+            >
+              <div className="ide-tabs" role="tablist" aria-label="Open files">
+                {openFileIds.map((id) => {
+                  const node = view.nodes.get(id);
+                  if (!node) return null;
+                  const isActive = id === selectedFileId;
+                  return (
+                    <div
+                      key={id}
+                      ref={isActive ? activeTabRef : undefined}
+                      className={`ide-tab ${isActive ? "is-active" : ""}`}
+                      role="tab"
+                      aria-selected={isActive}
+                      onClick={() => dispatchTabs({ type: "select", fileId: id })}
+                    >
+                      <button
+                        type="button"
+                        className="ide-tab-label"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          dispatchTabs({ type: "select", fileId: id });
+                        }}
+                      >
+                        {fileIcon(node.name, node.type)}
+                        <span>{view.displayNames.get(id) ?? node.name}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="ide-tab-close"
+                        aria-label={`Close ${node.name}`}
+                        title={`Close ${node.name}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          dispatchTabs({ type: "close", fileId: id });
+                        }}
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  );
+                })}
+                {openFileIds.length === 0 && <span className="ide-tabs-empty">No files open</span>}
+              </div>
+            </div>
+          </div>
+          <div className="ide-editor-actions" aria-label="Editor actions">
             {canRun && selectedFileId && view.nodes.get(selectedFileId)?.type === "file" && getFileCapability(view.nodes.get(selectedFileId)?.name).isExecutable && (
-              <button type="button" className="ide-run-button" onClick={() => void runSelectedFile()} disabled={running} title="Run selected file">
-                <Play size={14} /> {running ? "Running…" : "Run"}
+              <button
+                type="button"
+                className="ide-run-button"
+                onClick={() => void runSelectedFile()}
+                disabled={running}
+                title="Run selected file"
+                aria-label="Run selected file"
+              >
+                <Play size={13} />
+                <span>{running ? "Running…" : "Run"}</span>
               </button>
             )}
+            <button
+              type="button"
+              className={`ide-action-button ${panelOpen ? "is-active" : ""}`}
+              onClick={() => setPanelOpen((open) => !open)}
+              title={panelOpen ? "Hide bottom panel" : "Toggle bottom panel"}
+              aria-label={panelOpen ? "Hide bottom panel" : "Toggle bottom panel"}
+              aria-pressed={panelOpen}
+            >
+              <PanelBottom size={15} />
+            </button>
+            <div className="ide-more-actions-container" ref={moreMenuRef}>
+              <button
+                type="button"
+                className={`ide-action-button ${moreMenuOpen ? "is-active" : ""}`}
+                onClick={() => setMoreMenuOpen((open) => !open)}
+                title="More editor actions"
+                aria-label="More editor actions"
+                aria-haspopup="menu"
+                aria-expanded={moreMenuOpen}
+              >
+                <MoreHorizontal size={15} />
+              </button>
+              {moreMenuOpen && (
+                <div className="ide-more-actions-menu" role="menu" aria-label="More actions">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={openFileIds.length === 0}
+                    onClick={() => {
+                      setMoreMenuOpen(false);
+                      openFileIds.forEach((id) => dispatchTabs({ type: "close", fileId: id }));
+                    }}
+                  >
+                    Close All Tabs
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={!selectedFileId || openFileIds.length <= 1}
+                    onClick={() => {
+                      setMoreMenuOpen(false);
+                      openFileIds
+                        .filter((id) => id !== selectedFileId)
+                        .forEach((id) => dispatchTabs({ type: "close", fileId: id }));
+                    }}
+                  >
+                    Close Other Tabs
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
+        </div>
+        <div className="ide-editor-area">
           <EditorErrorBoundary
             fileName={selectedFileId ? view.nodes.get(selectedFileId)?.name : undefined}
             onReset={() => selectFile("")}
