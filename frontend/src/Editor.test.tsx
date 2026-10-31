@@ -178,4 +178,13 @@ describe("Editor component", () => {
     expect(screen.getByText("Binary file")).toBeDefined();
     expect(screen.getByText(/"firmware\.bin" cannot be edited/)).toBeDefined();
   });
+
+  it("renders a clean empty state card when workspace is ready but no file is selected", () => {
+    const doc = new Y.Doc();
+    render(<Editor doc={doc} fileId={null} workspaceReady emptyWorkspace={false} />);
+
+    expect(screen.queryByTestId("monaco-mock")).toBeNull();
+    expect(screen.getByText("No file selected")).toBeDefined();
+    expect(screen.getByText(/Select a file from the explorer sidebar/i)).toBeDefined();
+  });
 });

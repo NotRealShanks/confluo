@@ -13,6 +13,7 @@ import { getFileText, snapshot } from "./workspace/ops";
 import { languageForFilename } from "./workspace/language";
 import { downloadAsset } from "./api/assets";
 import { useSettings } from "./settings";
+import { Code2 } from "lucide-react";
 
 type UserState = { name: string; color: string; showName?: boolean };
 type MountedEditor = { fileId: string | null | undefined; editor: editor.IStandaloneCodeEditor; monaco: Monaco };
@@ -294,13 +295,16 @@ export default function Editor({
         </div>
       ) : (
         <div className="ide-empty-editor">
-          <strong>{workspaceReady && emptyWorkspace ? "No files in this workspace" : workspaceReady ? "No file selected" : "Synchronizing workspace…"}</strong>
-          <span>{workspaceReady && emptyWorkspace ? "Create a file to start editing." : workspaceReady ? "Select a file from Explorer to start editing." : "Your workspace will appear when synchronization finishes."}</span>
-          {workspaceReady && emptyWorkspace && onCreateFile && (
-            <button type="button" className="ide-empty-editor-action" onClick={onCreateFile}>
-              New File
-            </button>
-          )}
+          <div className="ide-empty-editor-card">
+            <Code2 size={36} className="ide-empty-icon" strokeWidth={1.5} />
+            <strong>{workspaceReady && emptyWorkspace ? "No files in this workspace" : workspaceReady ? "No file selected" : "Connecting to workspace…"}</strong>
+            <span>{workspaceReady && emptyWorkspace ? "Create a file to start editing." : workspaceReady ? "Select a file from the explorer sidebar to begin editing." : "Your workspace will appear when synchronization finishes."}</span>
+            {workspaceReady && emptyWorkspace && onCreateFile && (
+              <button type="button" className="ide-empty-editor-action" onClick={onCreateFile}>
+                + New File
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>

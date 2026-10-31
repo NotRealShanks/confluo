@@ -48,6 +48,7 @@ import {
   PANEL_DEFAULT_HEIGHT,
   PANEL_STEP,
   clampPanelHeight,
+  defaultPanelHeight,
   panelHeightBounds,
 } from "./panelResize";
 
@@ -66,16 +67,52 @@ function ActivityBar({
 }) {
   return (
     <nav className="ide-activity-bar" aria-label="Workspace navigation">
-      <button className={explorerOpen ? "is-active" : ""} type="button" aria-label="Explorer" aria-pressed={explorerOpen} title="Explorer" onClick={onToggleExplorer}><Files size={21} /></button>
-      <button type="button" aria-label="Search" title="Search"><Search size={21} /></button>
-      <button type="button" aria-label="Source control" title="Source control"><GitBranch size={21} /></button>
-      <button type="button" aria-label="Run and debug" title="Run and debug"><Play size={21} /></button>
+      <button
+        className={explorerOpen ? "is-active" : ""}
+        type="button"
+        aria-label="Explorer"
+        aria-pressed={explorerOpen}
+        title="Explorer (Files)"
+        onClick={onToggleExplorer}
+      >
+        <Files size={21} />
+      </button>
+      <button
+        type="button"
+        className="is-disabled"
+        aria-label="Search (Unavailable)"
+        title="Search (Coming soon)"
+        aria-disabled="true"
+        disabled
+      >
+        <Search size={21} />
+      </button>
+      <button
+        type="button"
+        className="is-disabled"
+        aria-label="Source Control (Unavailable)"
+        title="Source Control (Coming soon)"
+        aria-disabled="true"
+        disabled
+      >
+        <GitBranch size={21} />
+      </button>
+      <button
+        type="button"
+        className="is-disabled"
+        aria-label="Run and Debug (Unavailable)"
+        title="Run and Debug (Debugger unavailable — use editor Run button)"
+        aria-disabled="true"
+        disabled
+      >
+        <Play size={21} />
+      </button>
       <button
         className={`ide-activity-spacer ${settingsOpen ? "is-active" : ""}`}
         type="button"
         aria-label="Settings"
         aria-pressed={Boolean(settingsOpen)}
-        title="Settings"
+        title="Settings (Preferences)"
         onClick={onToggleSettings}
       >
         <Settings size={20} />
@@ -124,14 +161,19 @@ function BottomPanel({ open, onToggle, output, running, initialHeight = PANEL_DE
 
   const startPanelResize = (event: React.PointerEvent<HTMLDivElement>) => {
     event.preventDefault();
+    event.stopPropagation();
     stopPanelResize();
     setIsResizing(true);
     const panel = panelRef.current;
     if (!panel) return;
-    const initialBottom = panel.getBoundingClientRect().bottom;
+
+    const startY = event.clientY;
+    const rectHeight = panel.getBoundingClientRect().height;
+    const startHeight = panel.clientHeight || (rectHeight > 0 ? rectHeight : panelHeight);
 
     const onMove = (moveEvent: PointerEvent) => {
-      const newHeight = clampPanelHeight(initialBottom - moveEvent.clientY, availableHeight);
+      const deltaY = startY - moveEvent.clientY;
+      const newHeight = clampPanelHeight(startHeight + deltaY, availableHeight);
       setPanelHeight(newHeight);
       if (isMaximized) setIsMaximized(false);
     };
@@ -162,7 +204,7 @@ function BottomPanel({ open, onToggle, output, running, initialHeight = PANEL_DE
   const toggleMaximize = () => {
     if (isMaximized) {
       setIsMaximized(false);
-      setPanelHeight(preMaximizeHeightRef.current || PANEL_DEFAULT_HEIGHT);
+      setPanelHeight(preMaximizeHeightRef.current || defaultPanelHeight(availableHeight));
     } else {
       preMaximizeHeightRef.current = panelHeight;
       setIsMaximized(true);
@@ -211,6 +253,8 @@ function BottomPanel({ open, onToggle, output, running, initialHeight = PANEL_DE
           tabIndex={0}
           onPointerDown={startPanelResize}
           onKeyDown={resizeWithKeyboard}
+          onDoubleClick={toggleMaximize}
+          title="Drag to resize panel, double-click to toggle maximize"
         />
       )}
       <div
@@ -224,7 +268,13 @@ function BottomPanel({ open, onToggle, output, running, initialHeight = PANEL_DE
           <PanelBottom size={16} />
         </button>
         {(["terminal", "output", "problems"] as PanelTab[]).map((item) => (
-          <button key={item} type="button" className={tab === item ? "is-active" : ""} onClick={() => { setTab(item); if (!open) onToggle(); }}>
+          <button
+            key={item}
+            type="button"
+            className={tab === item ? "is-active" : ""}
+            onClick={() => { setTab(item); if (!open) onToggle(); }}
+            title={item === "terminal" ? "Terminal (Interactive terminal deferred)" : item === "output" ? "Output" : "Problems (0)"}
+          >
             {item === "terminal" ? <Terminal size={14} /> : item === "problems" ? <AlertCircle size={14} /> : null}
             {item[0].toUpperCase() + item.slice(1)}
             {item === "problems" && <span className="ide-panel-count">0</span>}
@@ -254,11 +304,29 @@ function BottomPanel({ open, onToggle, output, running, initialHeight = PANEL_DE
           </button>
         </div>
       </div>
-      {open && <div className="ide-panel-empty">
-        {tab === "terminal" ? <Terminal size={24} /> : tab === "problems" ? <AlertCircle size={24} /> : null}
-        <strong>{running ? "Running…" : tab === "terminal" ? "No terminal sessions" : tab === "output" ? "Output" : "No problems detected"}</strong>
-        {tab === "output" ? <pre className="ide-output">{output || "Run a supported file to see output here."}</pre> : <span>{tab === "terminal" ? "Interactive terminal is deferred." : "Activity will appear here when available."}</span>}
-      </div>}
+      {open && (
+        <div className="ide-panel-empty">
+          {tab === "terminal" ? <Terminal size={24} /> : tab === "problems" ? <AlertCircle size={24} /> : null}
+          <strong>
+            {running
+              ? "Running…"
+              : tab === "terminal"
+                ? "Interactive terminal is deferred"
+                : tab === "output"
+                  ? "Output"
+                  : "No problems detected"}
+          </strong>
+          {tab === "output" ? (
+            <pre className="ide-output">{output || "Run a supported file to see output here."}</pre>
+          ) : (
+            <span>
+              {tab === "terminal"
+                ? "Interactive terminal is deferred. Use the Run button in the editor header to execute programs."
+                : "Activity will appear here when available."}
+            </span>
+          )}
+        </div>
+      )}
     </section>
   );
 }

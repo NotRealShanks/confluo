@@ -41,7 +41,7 @@ vi.mock("../Editor", () => ({
   default: () => <div data-testid="editor-mock" />,
 }));
 
-describe("Terminal / BottomPanel Expansion and Resizing", () => {
+describe("Terminal / BottomPanel Expansion, Layout & Accessibility", () => {
   beforeEach(() => {
     testDoc = new Y.Doc();
     vi.restoreAllMocks();
@@ -103,7 +103,7 @@ describe("Terminal / BottomPanel Expansion and Resizing", () => {
     expect(screen.getByTitle("Maximize panel size")).toBeDefined();
   });
 
-  it("toggles maximize / restore on double-clicking the panel tabs bar", () => {
+  it("toggles maximize / restore on double-clicking the resize handle or tabs bar", () => {
     const { container } = render(
       <SettingsProvider>
         <CollaborativeWorkspace projectId="p-1" canRun={true} />
@@ -114,9 +114,18 @@ describe("Terminal / BottomPanel Expansion and Resizing", () => {
     fireEvent.click(screen.getByTitle("Toggle bottom panel"));
 
     const panel = container.querySelector(".ide-bottom-panel") as HTMLElement;
-    const tabsBar = container.querySelector(".ide-panel-tabs") as HTMLElement;
+    const handle = container.querySelector(".ide-panel-resize-handle") as HTMLElement;
 
-    // Double-click panel header
+    // Double-click resize handle to maximize
+    fireEvent.doubleClick(handle);
+    expect(panel.classList.contains("is-maximized")).toBe(true);
+
+    // Double-click resize handle to restore
+    fireEvent.doubleClick(handle);
+    expect(panel.classList.contains("is-maximized")).toBe(false);
+
+    // Double-click tabs bar to maximize
+    const tabsBar = container.querySelector(".ide-panel-tabs") as HTMLElement;
     fireEvent.doubleClick(tabsBar);
     expect(panel.classList.contains("is-maximized")).toBe(true);
 
@@ -181,11 +190,11 @@ describe("Terminal / BottomPanel Expansion and Resizing", () => {
       toJSON: () => {},
     });
 
-    // Start resize drag
+    // Start resize drag at clientY = 500
     fireEvent.pointerDown(handle, { clientY: 500 });
     expect(document.body.classList.contains("is-resizing-panel")).toBe(true);
 
-    // Drag up to clientY = 400 (initialBottom 700 - 400 = 300px height)
+    // Drag up to clientY = 400 (deltaY = 100, 200 + 100 = 300px height)
     fireEvent(window, new PointerEvent("pointermove", { clientY: 400 }));
     expect(Number(handle.getAttribute("aria-valuenow"))).toBe(300);
 
@@ -193,5 +202,67 @@ describe("Terminal / BottomPanel Expansion and Resizing", () => {
     fireEvent(window, new PointerEvent("pointerup"));
     expect(document.body.classList.contains("is-resizing-panel")).toBe(false);
   });
-});
 
+  it("clarifies activity bar icons: enables functional buttons and disables placeholders", () => {
+    render(
+      <SettingsProvider>
+        <CollaborativeWorkspace projectId="p-1" canRun={true} />
+      </SettingsProvider>,
+    );
+
+    // Explorer and Settings are functional and enabled
+    const explorerBtn = screen.getByLabelText("Explorer");
+    const settingsBtn = screen.getByLabelText("Settings");
+    expect(explorerBtn.hasAttribute("disabled")).toBe(false);
+    expect(settingsBtn.hasAttribute("disabled")).toBe(false);
+
+    // Search, Source Control, and Run and Debug are disabled placeholders
+    const searchBtn = screen.getByLabelText("Search (Unavailable)");
+    const sourceControlBtn = screen.getByLabelText("Source Control (Unavailable)");
+    const runDebugBtn = screen.getByLabelText("Run and Debug (Unavailable)");
+
+    expect(searchBtn.hasAttribute("disabled")).toBe(true);
+    expect(sourceControlBtn.hasAttribute("disabled")).toBe(true);
+    expect(runDebugBtn.hasAttribute("disabled")).toBe(true);
+
+    expect(searchBtn.getAttribute("title")).toMatch(/Coming soon/i);
+    expect(sourceControlBtn.getAttribute("title")).toMatch(/Coming soon/i);
+    expect(runDebugBtn.getAttribute("title")).toMatch(/Debugger unavailable/i);
+  });
+
+  it("displays clear deferred explanation for interactive terminal tab", () => {
+    render(
+      <SettingsProvider>
+        <CollaborativeWorkspace projectId="p-1" canRun={true} />
+      </SettingsProvider>,
+    );
+
+    // Open bottom panel
+    fireEvent.click(screen.getByTitle("Toggle bottom panel"));
+
+    // Switch to Terminal tab
+    fireEvent.click(screen.getByTitle(/Terminal/i));
+
+    // Clearly states that interactive terminal is deferred and guides user to Run button
+    expect(screen.getByText("Interactive terminal is deferred")).toBeDefined();
+    expect(screen.getByText(/Use the Run button in the editor header/i)).toBeDefined();
+  });
+
+  it("ensures the editor area is rendered and visible alongside the bottom panel", () => {
+    const { container } = render(
+      <SettingsProvider>
+        <CollaborativeWorkspace projectId="p-1" canRun={true} />
+      </SettingsProvider>,
+    );
+
+    // Editor area must exist in DOM
+    const editorArea = container.querySelector(".ide-editor-area");
+    expect(editorArea).not.toBeNull();
+    expect(screen.getByTestId("editor-mock")).toBeDefined();
+
+    // Opening the bottom panel keeps editor area rendered and visible
+    fireEvent.click(screen.getByTitle("Toggle bottom panel"));
+    expect(container.querySelector(".ide-editor-area")).not.toBeNull();
+    expect(screen.getByTestId("editor-mock")).toBeDefined();
+  });
+});
