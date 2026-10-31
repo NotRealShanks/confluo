@@ -9,7 +9,8 @@ const capturedProps: {
   language?: string;
   defaultLanguage?: string;
   path?: string;
-  options?: { readOnly?: boolean; domReadOnly?: boolean };
+  theme?: string;
+  options?: Record<string, any>;
 } = {};
 
 let canWriteSelf = true;
@@ -53,6 +54,7 @@ vi.mock("@monaco-editor/react", async () => {
       capturedProps.language = props.language;
       capturedProps.defaultLanguage = props.defaultLanguage;
       capturedProps.path = props.path;
+      capturedProps.theme = (props as any).theme;
       capturedProps.options = props.options;
       useEffect(() => {
         props.onMount?.(fakeEditor, fakeMonaco);
@@ -67,6 +69,7 @@ beforeEach(() => {
   capturedProps.language = undefined;
   capturedProps.defaultLanguage = undefined;
   capturedProps.path = undefined;
+  capturedProps.theme = undefined;
   capturedProps.options = undefined;
 });
 
@@ -91,6 +94,16 @@ describe("Editor component", () => {
     expect(capturedProps.language).toBe("java");
     expect(capturedProps.path).toBe(`workspace/${fileId.value}/Calculator.java`);
     expect(capturedProps.options?.readOnly).toBe(false);
+    expect(capturedProps.theme).toBe("vs");
+    expect(capturedProps.options?.fontSize).toBe(14);
+    expect(capturedProps.options?.tabSize).toBe(2);
+    expect(capturedProps.options?.wordWrap).toBe("off");
+    expect(capturedProps.options?.minimap).toEqual({ enabled: false });
+    expect(capturedProps.options?.lineNumbers).toBe("on");
+    expect(capturedProps.options?.insertSpaces).toBe(true);
+    expect(capturedProps.options?.cursorBlinking).toBe("blink");
+    expect(capturedProps.options?.bracketPairColorization).toEqual({ enabled: true });
+    expect(capturedProps.options?.renderWhitespace).toBe("selection");
   });
 
   it("handles extensionless files like Dockerfile and Makefile correctly", () => {

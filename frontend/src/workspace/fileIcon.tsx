@@ -1,30 +1,36 @@
+/* oxlint-disable react/only-export-components */
 import type { ReactNode } from "react";
 import {
-  Braces,
-  File,
-  FileCode2,
-  FileImage,
-  FileJson,
-  FileText,
-  Folder,
-  FolderOpen,
-} from "lucide-react";
-import { languageForFilename } from "./language";
+  renderFileIconNode,
+  renderFolderIconNode,
+} from "./fileIconMap";
 
-export function fileIcon(filename: string, type: "file" | "folder", expanded = false): ReactNode {
-  if (type === "folder") return expanded ? <FolderOpen size={15} /> : <Folder size={15} />;
+export * from "./fileIconMap";
 
-  const language = languageForFilename(filename);
-  if (["javascript", "typescript", "java", "c", "cpp", "csharp", "python", "rust", "go"].includes(language)) {
-    return <FileCode2 size={15} />;
+export interface FileIconProps {
+  filename: string;
+  size?: number;
+  className?: string;
+}
+
+export function FileIcon({ filename, size = 15 }: FileIconProps) {
+  return renderFileIconNode(filename, size);
+}
+
+export interface FolderIconProps {
+  name: string;
+  expanded?: boolean;
+  size?: number;
+  className?: string;
+}
+
+export function FolderIcon({ name, expanded = false, size = 15 }: FolderIconProps) {
+  return renderFolderIconNode(name, expanded, size);
+}
+
+export function fileIcon(filename: string, type: "file" | "folder", expanded = false, size = 15): ReactNode {
+  if (type === "folder") {
+    return renderFolderIconNode(filename, expanded, size);
   }
-  if (language === "json") return <FileJson size={15} />;
-  if (language === "markdown" || language === "plaintext" || language === "properties" || language === "ignore") {
-    return <FileText size={15} />;
-  }
-  if (["html", "css", "xml", "yaml", "sql", "dockerfile", "make", "shell"].includes(language)) {
-    return <Braces size={15} />;
-  }
-  if (/\.(?:png|jpe?g|gif|webp|bmp|ico)$/i.test(filename)) return <FileImage size={15} />;
-  return <File size={15} />;
+  return renderFileIconNode(filename, size);
 }

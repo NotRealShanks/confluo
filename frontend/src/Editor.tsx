@@ -12,6 +12,7 @@ import { getYjsProviderForRoom } from "@liveblocks/yjs";
 import { getFileText, snapshot } from "./workspace/ops";
 import { languageForFilename } from "./workspace/language";
 import { downloadAsset } from "./api/assets";
+import { useSettings } from "./settings";
 
 type UserState = { name: string; color: string; showName?: boolean };
 type MountedEditor = { fileId: string | null | undefined; editor: editor.IStandaloneCodeEditor; monaco: Monaco };
@@ -46,6 +47,7 @@ export default function Editor({
   const fileNode = fileId && doc ? snapshot(doc).nodes.get(fileId) : undefined;
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfError, setPdfError] = useState<string | null>(null);
+  const { settings, monacoTheme } = useSettings();
   const language = fileName ? languageForFilename(fileName) : "plaintext";
 
   // Reset mounted editor reference whenever the selected file changes so stale or
@@ -266,6 +268,7 @@ export default function Editor({
           <MonacoEditor
             key={fileId}
             height="100%"
+            theme={monacoTheme}
             language={language}
             defaultLanguage={language}
             defaultValue=""
@@ -273,7 +276,16 @@ export default function Editor({
             options={{
               readOnly,
               domReadOnly: readOnly,
-              minimap: { enabled: false },
+              fontSize: settings.fontSize,
+              fontFamily: settings.fontFamily,
+              tabSize: settings.tabSize,
+              insertSpaces: settings.insertSpaces,
+              wordWrap: settings.wordWrap,
+              lineNumbers: settings.lineNumbers,
+              minimap: { enabled: settings.minimap },
+              cursorBlinking: settings.cursorBlinking,
+              bracketPairColorization: { enabled: settings.bracketPairColorization },
+              renderWhitespace: settings.renderWhitespace,
               padding: { top: 12 },
               scrollBeyondLastLine: false,
             }}

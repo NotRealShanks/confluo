@@ -403,19 +403,23 @@ export default function WorkspaceExplorer({
             }}
           >
             {inlineOperation?.kind === "rename" && inlineOperation.nodeId === node.id ? (
-              <div className="ide-inline-editor">
-                <input
-                  ref={inlineInputRef}
-                  aria-label={`Rename ${node.name}`}
-                  value={inlineOperation.name}
-                  onChange={(event) => setInlineOperation((current) => current && { ...current, name: event.target.value, error: "" })}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") confirmInlineOperation();
-                    if (event.key === "Escape") cancelInlineOperation();
-                  }}
-                  className="ide-new-file-input"
-                />
-                {inlineOperation.error && <span className="ide-new-file-error">{inlineOperation.error}</span>}
+              <div className="ide-inline-editor" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <span className="ide-tree-chevron" />
+                {fileIcon(inlineOperation.name || node.name, node.type, expanded.has(node.id))}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <input
+                    ref={inlineInputRef}
+                    aria-label={`Rename ${node.name}`}
+                    value={inlineOperation.name}
+                    onChange={(event) => setInlineOperation((current) => current && { ...current, name: event.target.value, error: "" })}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") confirmInlineOperation();
+                      if (event.key === "Escape") cancelInlineOperation();
+                    }}
+                    className="ide-new-file-input"
+                  />
+                  {inlineOperation.error && <span className="ide-new-file-error">{inlineOperation.error}</span>}
+                </div>
               </div>
             ) : node.type === "folder" ? (
               <button
@@ -463,7 +467,7 @@ export default function WorkspaceExplorer({
     if (inlineOperation?.kind === "create" && inlineOperation.parentId === parentId) {
       nodes.unshift(
         <li key="new-file" className="ide-new-file-entry" style={{ paddingLeft: `${depth * 12 + 4}px` }}>
-          {fileIcon(inlineOperation.type === "folder" ? "folder" : "new-file", inlineOperation.type)}
+          {fileIcon(inlineOperation.name || (inlineOperation.type === "folder" ? "folder" : "new-file"), inlineOperation.type)}
           <div className="ide-new-file-editor">
             <input
               ref={inlineInputRef}

@@ -23,6 +23,7 @@ import { Room } from "../Room";
 import RoleBadge from "../components/RoleBadge";
 import { RoomErrorBoundary } from "../components/RoomErrorBoundary";
 import { EditorErrorBoundary } from "../components/EditorErrorBoundary";
+import { SettingsPanel, useSettings } from "../settings";
 import { fileIcon } from "../workspace/fileIcon";
 import ShareDialog from "../components/ShareDialog";
 import AccountMenu from "../components/AccountMenu";
@@ -32,7 +33,7 @@ import WorkspaceExplorer from "../workspace/WorkspaceExplorer";
 import { useRoom } from "@liveblocks/react/suspense";
 import { initialTabState, tabReducer } from "../workspace/tabState";
 import { executeProject, type ExecutionResult } from "../api/execution";
-import { languageForFilename } from "../workspace/language";
+import { getFileCapability } from "../workspace/fileCapabilities";
 import { pathForNode, workspaceTextEntries } from "../workspace/fileManagement";
 import {
   SIDEBAR_DEFAULT_WIDTH,
@@ -43,14 +44,33 @@ import {
 
 type PanelTab = "terminal" | "output" | "problems";
 
-function ActivityBar({ onToggleExplorer, explorerOpen }: { onToggleExplorer: () => void; explorerOpen: boolean }) {
+function ActivityBar({
+  onToggleExplorer,
+  explorerOpen,
+  onToggleSettings,
+  settingsOpen,
+}: {
+  onToggleExplorer: () => void;
+  explorerOpen: boolean;
+  onToggleSettings?: () => void;
+  settingsOpen?: boolean;
+}) {
   return (
     <nav className="ide-activity-bar" aria-label="Workspace navigation">
       <button className={explorerOpen ? "is-active" : ""} type="button" aria-label="Explorer" aria-pressed={explorerOpen} title="Explorer" onClick={onToggleExplorer}><Files size={21} /></button>
       <button type="button" aria-label="Search" title="Search"><Search size={21} /></button>
       <button type="button" aria-label="Source control" title="Source control"><GitBranch size={21} /></button>
       <button type="button" aria-label="Run and debug" title="Run and debug"><Play size={21} /></button>
-      <button className="ide-activity-spacer" type="button" aria-label="Settings" title="Settings"><Settings size={20} /></button>
+      <button
+        className={`ide-activity-spacer ${settingsOpen ? "is-active" : ""}`}
+        type="button"
+        aria-label="Settings"
+        aria-pressed={Boolean(settingsOpen)}
+        title="Settings"
+        onClick={onToggleSettings}
+      >
+        <Settings size={20} />
+      </button>
     </nav>
   );
 }
@@ -94,7 +114,9 @@ export function CollaborativeWorkspace({ projectId, canInitialize = true, canRun
   const provider = getYjsProviderForRoom(room);
   const doc = provider.getYDoc();
   const [ready, setReady] = useState(provider.synced);
+  const [, setDocVersion] = useState(0);
   const [{ selectedFileId, openFileIds }, dispatchTabs] = useReducer(tabReducer, initialTabState);
+  const { isSettingsOpen, toggleSettings } = useSettings();
   const [panelOpen, setPanelOpen] = useState(false);
   const [explorerOpen, setExplorerOpen] = useState(true);
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
@@ -189,14 +211,15 @@ export function CollaborativeWorkspace({ projectId, canInitialize = true, canRun
   }, [canInitialize, doc, provider]);
 
   useEffect(() => {
-    const reconcileTabs = () => {
+    const handleDocUpdate = () => {
+      setDocVersion((v) => v + 1);
       const validFileIds = Array.from(snapshot(doc).nodes.values())
         .filter((node) => node.type === "file")
         .map((node) => node.id);
       dispatchTabs({ type: "reconcile", validFileIds });
     };
-    doc.on("update", reconcileTabs);
-    return () => doc.off("update", reconcileTabs);
+    doc.on("update", handleDocUpdate);
+    return () => doc.off("update", handleDocUpdate);
   }, [doc]);
 
   const selectFile = (id: string) => {
@@ -214,9 +237,9 @@ export function CollaborativeWorkspace({ projectId, canInitialize = true, canRun
       setPanelOpen(true);
       return;
     }
-    const language = languageForFilename(node.name);
-    if (!["java", "javascript", "typescript", "python", "c", "cpp"].includes(language)) {
-      setOutput(`Run is not supported for ${node.name}. HTML and CSS use a browser preview workflow.`);
+    const capability = getFileCapability(node.name);
+    if (!capability.isExecutable || !capability.executionLanguage) {
+      setOutput(`Run is not supported for ${node.name}.`);
       setPanelOpen(true);
       return;
     }
@@ -225,7 +248,7 @@ export function CollaborativeWorkspace({ projectId, canInitialize = true, canRun
     setPanelOpen(true);
     try {
       const result: ExecutionResult = await executeProject(projectId, {
-        language,
+        language: capability.executionLanguage,
         entrypoint: pathForNode(view, node),
         files: workspaceTextEntries(doc),
       });
@@ -240,7 +263,7 @@ export function CollaborativeWorkspace({ projectId, canInitialize = true, canRun
 
   return (
     <div ref={workspaceRef} className={`ide-workspace ${isResizingSidebar ? "is-resizing-sidebar" : ""}`}>
-      <ActivityBar explorerOpen={explorerOpen} onToggleExplorer={() => setExplorerOpen((open) => !open)} />
+      <ActivityBar explorerOpen={explorerOpen} onToggleExplorer={() => setExplorerOpen((open) => !open)} settingsOpen={isSettingsOpen} onToggleSettings={toggleSettings} />
       {explorerOpen && <aside ref={sidebarRef} className="ide-sidebar" style={{ width: `${sidebarWidth}px` }}>
         <WorkspaceExplorer
           doc={doc}
@@ -277,9 +300,11 @@ export function CollaborativeWorkspace({ projectId, canInitialize = true, canRun
         </div>
         <div className="ide-editor-area">
           <div className="ide-editor-toolbar">
-            <button type="button" className="ide-run-button" onClick={() => void runSelectedFile()} disabled={running || !canRun} title="Run selected file">
-              <Play size={14} /> {running ? "Running…" : "Run"}
-            </button>
+            {canRun && selectedFileId && view.nodes.get(selectedFileId)?.type === "file" && getFileCapability(view.nodes.get(selectedFileId)?.name).isExecutable && (
+              <button type="button" className="ide-run-button" onClick={() => void runSelectedFile()} disabled={running} title="Run selected file">
+                <Play size={14} /> {running ? "Running…" : "Run"}
+              </button>
+            )}
           </div>
           <EditorErrorBoundary
             fileName={selectedFileId ? view.nodes.get(selectedFileId)?.name : undefined}
@@ -297,6 +322,7 @@ export function CollaborativeWorkspace({ projectId, canInitialize = true, canRun
         </div>
         <BottomPanel open={panelOpen} onToggle={() => setPanelOpen((open) => !open)} output={output} running={running} />
       </main>
+      <SettingsPanel />
     </div>
   );
 }
