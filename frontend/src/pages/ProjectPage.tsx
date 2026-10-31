@@ -22,6 +22,8 @@ import Presence from "../Presence";
 import { Room } from "../Room";
 import RoleBadge from "../components/RoleBadge";
 import { RoomErrorBoundary } from "../components/RoomErrorBoundary";
+import { EditorErrorBoundary } from "../components/EditorErrorBoundary";
+import { fileIcon } from "../workspace/fileIcon";
 import ShareDialog from "../components/ShareDialog";
 import AccountMenu from "../components/AccountMenu";
 import { useProject } from "../projects/hooks";
@@ -267,7 +269,7 @@ export function CollaborativeWorkspace({ projectId, canInitialize = true, canRun
             const node = view.nodes.get(id);
             if (!node) return null;
             return <div key={id} className={`ide-tab ${id === selectedFileId ? "is-active" : ""}`} role="tab" aria-selected={id === selectedFileId}>
-              <button type="button" onClick={() => dispatchTabs({ type: "select", fileId: id })}><Braces size={14} />{view.displayNames.get(id) ?? node.name}</button>
+              <button type="button" onClick={() => dispatchTabs({ type: "select", fileId: id })}>{fileIcon(node.name, node.type)}{view.displayNames.get(id) ?? node.name}</button>
               <button type="button" className="ide-tab-close" aria-label={`Close ${node.name}`} onClick={() => dispatchTabs({ type: "close", fileId: id })}><X size={14} /></button>
             </div>;
           })}
@@ -279,14 +281,19 @@ export function CollaborativeWorkspace({ projectId, canInitialize = true, canRun
               <Play size={14} /> {running ? "Running…" : "Run"}
             </button>
           </div>
-          <Editor
-            doc={doc}
-            projectId={projectId}
-            fileId={selectedFileId}
-            workspaceReady={ready}
-            emptyWorkspace={view.nodes.size === 0}
-            onCreateFile={canInitialize ? () => setCreateFileRequest((request) => request + 1) : undefined}
-          />
+          <EditorErrorBoundary
+            fileName={selectedFileId ? view.nodes.get(selectedFileId)?.name : undefined}
+            onReset={() => selectFile("")}
+          >
+            <Editor
+              doc={doc}
+              projectId={projectId}
+              fileId={selectedFileId}
+              workspaceReady={ready}
+              emptyWorkspace={view.nodes.size === 0}
+              onCreateFile={canInitialize ? () => setCreateFileRequest((request) => request + 1) : undefined}
+            />
+          </EditorErrorBoundary>
         </div>
         <BottomPanel open={panelOpen} onToggle={() => setPanelOpen((open) => !open)} output={output} running={running} />
       </main>

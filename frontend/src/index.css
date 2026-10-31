@@ -266,10 +266,14 @@ button {
   color: #111827;
 }
 
-.ide-tree {
+.ide-tree, .ide-tree-subgroup {
   margin: 0;
-  padding: 0 4px 12px;
+  padding: 0;
   list-style: none;
+}
+
+.ide-tree {
+  padding: 0 4px 12px;
 }
 
 .ide-tree-row {

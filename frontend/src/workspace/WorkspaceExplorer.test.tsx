@@ -238,4 +238,66 @@ describe("WorkspaceExplorer import", () => {
     expect(snapshot(doc).children.get(null)?.[0].name).toBe("notes.md");
     expect(screen.getByRole("status").textContent).toContain("Imported 1 file");
   });
+
+  it("imports individual files into the selected folder", async () => {
+    const { doc } = renderExplorer();
+    const srcId = createFolder(doc, "src");
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    fireEvent.click(screen.getByRole("button", { name: "src" }));
+
+    const file = new File(["console.log(1)"], "index.js", { type: "text/javascript" });
+    Object.defineProperty(file, "arrayBuffer", { value: async () => new TextEncoder().encode("console.log(1)").buffer });
+    const picker = document.querySelector('input[type="file"]') as HTMLInputElement;
+
+    fireEvent.change(picker, { target: { files: [file] } });
+
+    await waitFor(() => expect(snapshot(doc).children.get(srcId)?.length).toBe(1));
+    const imported = snapshot(doc).children.get(srcId)?.[0];
+    expect(imported?.name).toBe("index.js");
+    expect(imported?.parentId).toBe(srcId);
+  });
+
+  it("imports files without extensions cleanly", async () => {
+    const { doc } = renderExplorer();
+    const file = new File(["FROM alpine"], "Dockerfile", { type: "text/plain" });
+    Object.defineProperty(file, "arrayBuffer", { value: async () => new TextEncoder().encode("FROM alpine").buffer });
+    const picker = document.querySelector('input[type="file"]') as HTMLInputElement;
+
+    fireEvent.change(picker, { target: { files: [file] } });
+
+    await waitFor(() => expect(snapshot(doc).nodes.size).toBe(1));
+    const imported = snapshot(doc).children.get(null)?.[0];
+    expect(imported?.name).toBe("Dockerfile");
+    expect(getFileText(doc, imported!.id)?.toString()).toBe("FROM alpine");
+  });
+
+  it("handles duplicate imports by renaming with preserved extension", async () => {
+    const { doc } = renderExplorer();
+    createNode(doc, { type: "file", name: "app.ts", parentId: null, content: "original" });
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+
+    vi.spyOn(window, "prompt")
+      .mockReturnValueOnce("rename")
+      .mockReturnValueOnce("app (copy).ts");
+
+    const file = new File(["replacement"], "app.ts", { type: "text/typescript" });
+    Object.defineProperty(file, "arrayBuffer", { value: async () => new TextEncoder().encode("replacement").buffer });
+    const picker = document.querySelector('input[type="file"]') as HTMLInputElement;
+
+    fireEvent.change(picker, { target: { files: [file] } });
+
+    await waitFor(() => expect(snapshot(doc).nodes.size).toBe(2));
+    const names = Array.from(snapshot(doc).nodes.values()).map((n) => n.name);
+    expect(names).toContain("app.ts");
+    expect(names).toContain("app (copy).ts");
+  });
+
+  it("clicking a folder selects the folder without calling onSelectFile with empty string", () => {
+    const { doc, onSelectFile } = renderExplorer();
+    createFolder(doc, "src");
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "src" }));
+    expect(onSelectFile).not.toHaveBeenCalledWith("");
+  });
 });

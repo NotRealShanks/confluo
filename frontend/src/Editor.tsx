@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Editor as MonacoEditor, type Monaco } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import { MonacoBinding } from "y-monaco";
 import type { Awareness } from "y-protocols/awareness";
 import type { Transaction, YTextEvent } from "yjs";
-import type * as Y from "yjs";
+import * as Y from "yjs";
 import { useRoom, useSelf } from "@liveblocks/react/suspense";
 import { colorFor } from "./lib/color";
 import { safeCursorColor, safeCursorName } from "./lib/cursorCss";
@@ -48,6 +48,19 @@ export default function Editor({
   const [pdfError, setPdfError] = useState<string | null>(null);
   const language = fileName ? languageForFilename(fileName) : "plaintext";
 
+  // Reset mounted editor reference whenever the selected file changes so stale or
+  // disposed instances are never accessed across file switches.
+  useEffect(() => {
+    setMountedEditor(undefined);
+  }, [fileId]);
+
+  const handleEditorMount = useCallback(
+    (editor: editor.IStandaloneCodeEditor, monaco: Monaco) => {
+       setMountedEditor({ fileId, editor, monaco });
+    },
+    [fileId],
+  );
+
   useEffect(() => {
     let active = true;
     if (fileNode?.kind !== "binary" || !fileNode.assetId || !projectId) {
@@ -73,13 +86,35 @@ export default function Editor({
     };
   }, [fileNode?.assetId, fileNode?.kind, projectId]);
 
+  // Automatically heal missing text entry in contentsMap for a known file node
+  useEffect(() => {
+    if (!fileId || !workspaceReady || readOnly) return;
+    const yDoc = doc ?? getYjsProviderForRoom(room).getYDoc();
+    const node = snapshot(yDoc).nodes.get(fileId);
+    if (node?.type === "file" && node.kind !== "binary") {
+      if (!getFileText(yDoc, fileId)) {
+        yDoc.getMap("contents").set(fileId, new Y.Text(""));
+      }
+    }
+  }, [doc, fileId, readOnly, room, workspaceReady]);
+
   // Set up Yjs doc and MonacoBinding (one-time on editor mount)
   useEffect(() => {
-    if (!editorInstance || mountedFileId !== fileId) return;
+        if (!editorInstance || mountedFileId !== fileId) return;
     const yProvider = getYjsProviderForRoom(room);
     if (!workspaceReady) return;
     const yDoc = doc ?? yProvider.getYDoc();
-    const yText = fileId ? getFileText(yDoc, fileId) : yDoc.getText("monaco");
+    let yText = fileId ? getFileText(yDoc, fileId) : yDoc.getText("monaco");
+
+    // Automatically heal missing text entry in contentsMap for a known file node
+    if (!yText && fileId && !readOnly) {
+      const node = snapshot(yDoc).nodes.get(fileId);
+      if (node?.type === "file" && node.kind !== "binary") {
+        yDoc.getMap("contents").set(fileId, new Y.Text(""));
+        yText = getFileText(yDoc, fileId);
+      }
+    }
+
     if (!yText) return;
     const awareness = yProvider.awareness as unknown as Awareness;
 
@@ -90,21 +125,23 @@ export default function Editor({
       showName: false,
     } satisfies UserState);
 
-    // A fast selection change can dispose the previous Monaco model before this
-    // effect runs. Do not turn that local render race into a room-level failure.
+    // Guard against disposed models during fast tab/file transitions
     const model = editorInstance.getModel();
-    if (!model) return;
+    if (!model || (typeof (model as { isDisposed?: () => boolean }).isDisposed === "function" && (model as { isDisposed: () => boolean }).isDisposed())) {
+      return;
+    }
+
     const binding = new MonacoBinding(
       yText,
       model,
       new Set([editorInstance]),
-      awareness
+      awareness,
     );
 
     return () => {
       binding.destroy();
     };
-  }, [doc, editorInstance, fileId, mountedFileId, room, name, color, workspaceReady]);
+  }, [doc, editorInstance, fileId, mountedFileId, room, name, color, readOnly, workspaceReady]);
 
   // Show the name tag on this user's own edits and selections, hide after 2s
   useEffect(() => {
@@ -193,27 +230,46 @@ export default function Editor({
     };
   }, [color, name, room]);
 
+  const isPdf = Boolean(
+    fileNode &&
+      (fileNode.mimeType === "application/pdf" ||
+        (fileNode.name && /\.pdf$/i.test(fileNode.name))),
+  );
+
   return (
     <div className="ide-editor">
       {readOnly && (
         <p className="ide-readonly-notice">You have view-only access to this project.</p>
       )}
-      {fileId && workspaceReady && fileNode?.kind === "binary" && pdfError ? (
-        <div className="ide-empty-editor">{pdfError}</div>
-      ) : fileId && workspaceReady && fileNode?.kind === "binary" && fileNode.assetId && projectId && pdfUrl ? (
-        <iframe
-          className="ide-pdf-preview"
-          title={fileNode.name}
-          src={pdfUrl}
-        />
+      {fileId && workspaceReady && fileNode?.kind === "binary" ? (
+        pdfError ? (
+          <div className="ide-empty-editor">{pdfError}</div>
+        ) : fileNode.assetId && projectId && pdfUrl ? (
+          <iframe
+            className="ide-pdf-preview"
+            title={fileNode.name}
+            src={pdfUrl}
+          />
+        ) : isPdf ? (
+          <div className="ide-empty-editor">
+            <strong>Loading PDF preview…</strong>
+            <span>Fetching asset content.</span>
+          </div>
+        ) : (
+          <div className="ide-empty-editor">
+            <strong>Binary file</strong>
+            <span>"{fileNode.name}" cannot be edited in the text editor.</span>
+          </div>
+        )
       ) : fileId && workspaceReady ? (
         <div className="ide-monaco">
           <MonacoEditor
             key={fileId}
             height="100%"
+            language={language}
             defaultLanguage={language}
             defaultValue=""
-            path={`workspace/${fileId}`}
+            path={fileName ? `workspace/${fileId}/${fileName}` : `workspace/${fileId}`}
             options={{
               readOnly,
               domReadOnly: readOnly,
@@ -221,9 +277,7 @@ export default function Editor({
               padding: { top: 12 },
               scrollBeyondLastLine: false,
             }}
-            onMount={(editor, monaco) => {
-              setMountedEditor({ fileId, editor, monaco });
-            }}
+            onMount={handleEditorMount}
           />
         </div>
       ) : (

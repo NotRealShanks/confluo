@@ -280,6 +280,13 @@ export default function WorkspaceExplorer({
       for (const file of Array.from(files)) {
         let uploadedAssetId: string | null = null;
         let importPath = file.webkitRelativePath || file.name;
+        if (!file.webkitRelativePath && selectedFolderId) {
+          const selectedFolder = view.nodes.get(selectedFolderId);
+          if (selectedFolder && selectedFolder.type === "folder") {
+            const folderPath = pathForNode(view, selectedFolder);
+            importPath = `${folderPath}/${file.name}`;
+          }
+        }
         try {
           const buffer = await file.arrayBuffer();
           const bytes = new Uint8Array(buffer);
@@ -293,11 +300,14 @@ export default function WorkspaceExplorer({
           let overwrite = false;
           const existing = nodeForPath(doc, importPath);
           if (existing) {
+            if (existing.type === "folder") {
+              throw new Error(`A folder already exists at "${importPath}".`);
+            }
             const choice = window.prompt(`Duplicate file: ${importPath}\nType overwrite, skip, or rename.`, "skip")?.trim().toLowerCase();
             if (choice === "skip" || !choice) continue;
             if (choice === "overwrite") overwrite = true;
             else if (choice === "rename") {
-              const renamed = window.prompt("Enter a new relative path:", `${importPath}.copy`);
+              const dot = importPath.lastIndexOf("."); const [stem, ext] = dot > 0 ? [importPath.slice(0, dot), importPath.slice(dot)] : [importPath, ""]; const renamed = window.prompt("Enter a new relative path:", `${stem} (copy)${ext}`);
               if (!renamed) continue;
               if (!normalizeImportPath(renamed)) throw new Error("The chosen relative path is invalid.");
               importPath = renamed;
@@ -435,7 +445,6 @@ export default function WorkspaceExplorer({
                   onSelectFile(node.id);
                 } else {
                   setSelectedFolderId(node.id);
-                  onSelectFile("");
                 }
               }}
             >
@@ -443,7 +452,11 @@ export default function WorkspaceExplorer({
               {view.displayNames.get(node.id) ?? node.name}
             </button>}
           </div>
-          {children}
+          {children.length > 0 && (
+            <ul className="ide-tree-subgroup" role="group">
+              {children}
+            </ul>
+          )}
         </li>,
       ];
     });
