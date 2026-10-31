@@ -112,12 +112,11 @@ export function getFileCapability(filename?: string | null): FileCapability {
 
     case ".html":
     case ".htm":
-      // HTML browser preview is currently not implemented in Confluo
       return {
         filename: cleanName,
-        action: "none",
+        action: "preview",
         isExecutable: false,
-        isPreviewable: false,
+        isPreviewable: true,
       };
 
     default:
@@ -132,5 +131,9 @@ export function getFileCapability(filename?: string | null): FileCapability {
 
 export function isExecutableFile(filename?: string | null): boolean {
   return getFileCapability(filename).isExecutable;
+}
+
+export function isPreviewableFile(filename?: string | null): boolean {
+  return getFileCapability(filename).isPreviewable;
 }
 

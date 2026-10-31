@@ -685,6 +685,46 @@ button {
   opacity: 0.55;
 }
 
+.ide-preview-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid #059669;
+  border-radius: 4px;
+  padding: 0 8px;
+  height: 24px;
+  background: #059669;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  line-height: 1;
+  transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+
+.ide-preview-button:hover:not(:disabled) {
+  background: #047857;
+}
+
+.ide-preview-button.is-active {
+  background: #065f46;
+  border-color: #10b981;
+}
+
+.ide-preview-resizer {
+  width: 5px;
+  background-color: transparent;
+  cursor: col-resize;
+  flex-shrink: 0;
+  z-index: 10;
+  transition: background-color 0.15s ease;
+}
+
+.ide-preview-resizer:hover,
+.ide-preview-resizer:active {
+  background-color: #007fd4;
+}
+
 .ide-more-actions-container {
   position: relative;
   display: inline-flex;
@@ -731,7 +771,7 @@ button {
 
 .ide-editor-area {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   min-width: 0;
   min-height: 0;
   flex: 1 1 0%;
@@ -1838,6 +1878,21 @@ body.is-resizing-panel * {
 [data-theme="dark"] .ide-action-button.is-active {
   background: #1e3a8a;
   color: #93c5fd;
+}
+
+[data-theme="dark"] .ide-preview-button {
+  background: #059669;
+  border-color: #059669;
+  color: #fff;
+}
+
+[data-theme="dark"] .ide-preview-button:hover:not(:disabled) {
+  background: #10b981;
+}
+
+[data-theme="dark"] .ide-preview-button.is-active {
+  background: #064e3b;
+  border-color: #34d399;
 }
 
 [data-theme="dark"] .ide-more-actions-menu {

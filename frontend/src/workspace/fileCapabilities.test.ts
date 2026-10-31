@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getFileCapability, isExecutableFile } from "./fileCapabilities";
+import { getFileCapability, isExecutableFile, isPreviewableFile } from "./fileCapabilities";
 
 describe("fileCapabilities", () => {
   describe("Executable files", () => {
@@ -103,11 +103,14 @@ describe("fileCapabilities", () => {
       expect(getFileCapability("doc.pdf").isExecutable).toBe(false);
     });
 
-    it("excludes HTML files from Run (and no preview since preview is not implemented)", () => {
+    it("identifies HTML files as previewable but not executable", () => {
       const cap = getFileCapability("index.html");
       expect(cap.isExecutable).toBe(false);
-      expect(cap.action).toBe("none");
-      expect(cap.isPreviewable).toBe(false);
+      expect(cap.action).toBe("preview");
+      expect(cap.isPreviewable).toBe(true);
+      expect(isPreviewableFile("index.html")).toBe(true);
+      expect(isPreviewableFile("about.htm")).toBe(true);
+      expect(isPreviewableFile("INDEX.HTML")).toBe(true);
     });
 
     it("handles extensionless files", () => {

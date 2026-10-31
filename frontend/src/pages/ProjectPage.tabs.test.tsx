@@ -224,7 +224,8 @@ describe("Editor Tab Bar Redesign & Action Integration", () => {
     expect(screen.queryByRole("menu", { name: "More actions" })).toBeNull();
   });
 
-  it("does not render non-existent Preview or Debug buttons in editor actions", () => {
+  it("renders Preview only when supported and does not render unimplemented Debug buttons", () => {
+    createNode(testDoc, { type: "file", name: "notes.txt", parentId: null, content: "text file" });
     createNode(testDoc, { type: "file", name: "index.html", parentId: null, content: "<h1>Hi</h1>" });
 
     const { container } = render(
@@ -233,11 +234,15 @@ describe("Editor Tab Bar Redesign & Action Integration", () => {
       </SettingsProvider>,
     );
 
-    clickFileInExplorer("index.html");
-
-    // Neither preview nor debug actions should exist in editor header actions
+    // For unsupported file (notes.txt): neither preview nor debug actions exist
+    clickFileInExplorer("notes.txt");
     const editorActions = container.querySelector(".ide-editor-actions");
     expect(editorActions?.querySelector("[title*='Preview'], [title*='preview']")).toBeNull();
+    expect(editorActions?.querySelector("[title*='Debug'], [title*='debug']")).toBeNull();
+
+    // For supported file (index.html): preview action exists, debug still does not exist
+    clickFileInExplorer("index.html");
+    expect(editorActions?.querySelector("[title*='Preview'], [title*='preview']")).not.toBeNull();
     expect(editorActions?.querySelector("[title*='Debug'], [title*='debug']")).toBeNull();
   });
 });

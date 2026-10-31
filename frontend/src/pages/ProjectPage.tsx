@@ -5,6 +5,7 @@ import {
   AlertCircle,
   Braces,
   ChevronDown,
+  Compass,
   Files,
   GitBranch,
   Maximize2,
@@ -38,6 +39,7 @@ import { initialTabState, tabReducer } from "../workspace/tabState";
 import { executeProject, type ExecutionResult } from "../api/execution";
 import { getFileCapability } from "../workspace/fileCapabilities";
 import { pathForNode, workspaceTextEntries } from "../workspace/fileManagement";
+import { BrowserPreview } from "../preview/BrowserPreview";
 import {
   SIDEBAR_DEFAULT_WIDTH,
   SIDEBAR_STEP,
@@ -354,6 +356,12 @@ export function CollaborativeWorkspace({ projectId, canInitialize = true, canRun
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewMaximized, setPreviewMaximized] = useState(false);
+  const [previewWidthPercent, setPreviewWidthPercent] = useState(50);
+  const [activePreviewPath, setActivePreviewPath] = useState("index.html");
+  const previewResizeCleanupRef = useRef<(() => void) | null>(null);
+  const editorAreaRef = useRef<HTMLDivElement>(null);
   const workspaceRef = useRef<HTMLDivElement>(null);
   const sidebarRef = useRef<HTMLElement>(null);
   const resizeCleanupRef = useRef<(() => void) | null>(null);
@@ -430,6 +438,38 @@ export function CollaborativeWorkspace({ projectId, canInitialize = true, canRun
       setSidebarWidth(bounds.max);
     }
   };
+
+  const startPreviewResize = (event: React.PointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    previewResizeCleanupRef.current?.();
+    const area = editorAreaRef.current;
+    if (!area) return;
+
+    const onMove = (moveEvent: PointerEvent) => {
+      const rect = area.getBoundingClientRect();
+      if (rect.width <= 0) return;
+      const offsetFromLeft = moveEvent.clientX - rect.left;
+      const editorPercent = (offsetFromLeft / rect.width) * 100;
+      const previewPercent = 100 - editorPercent;
+      setPreviewWidthPercent(Math.min(Math.max(previewPercent, 20), 80));
+    };
+
+    const onUp = () => {
+      previewResizeCleanupRef.current?.();
+      previewResizeCleanupRef.current = null;
+    };
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    previewResizeCleanupRef.current = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+  };
+
+  useEffect(() => () => {
+    previewResizeCleanupRef.current?.();
+  }, []);
 
   useEffect(() => {
     const onSynced = (synced: boolean) => {
@@ -518,8 +558,28 @@ export function CollaborativeWorkspace({ projectId, canInitialize = true, canRun
   const selectFile = (id: string) => {
     if (id) {
       dispatchTabs({ type: "select", fileId: id });
+      const targetNode = view.nodes.get(id);
+      if (targetNode?.type === "file" && getFileCapability(targetNode.name).isPreviewable) {
+        setActivePreviewPath(pathForNode(view, targetNode));
+      }
     } else if (selectedFileId) {
       dispatchTabs({ type: "remove", fileId: selectedFileId });
+    }
+  };
+
+  const selectedNode = selectedFileId ? view.nodes.get(selectedFileId) : undefined;
+  const isSelectedFilePreviewable =
+    selectedNode?.type === "file" && getFileCapability(selectedNode.name).isPreviewable;
+
+  const togglePreview = () => {
+    if (!previewOpen) {
+      if (selectedNode && isSelectedFilePreviewable) {
+        setActivePreviewPath(pathForNode(view, selectedNode));
+      }
+      setPreviewOpen(true);
+    } else {
+      setPreviewOpen(false);
+      setPreviewMaximized(false);
     }
   };
 
@@ -602,14 +662,14 @@ export function CollaborativeWorkspace({ projectId, canInitialize = true, canRun
                       className={`ide-tab ${isActive ? "is-active" : ""}`}
                       role="tab"
                       aria-selected={isActive}
-                      onClick={() => dispatchTabs({ type: "select", fileId: id })}
+                      onClick={() => selectFile(id)}
                     >
                       <button
                         type="button"
                         className="ide-tab-label"
                         onClick={(e) => {
                           e.stopPropagation();
-                          dispatchTabs({ type: "select", fileId: id });
+                          selectFile(id);
                         }}
                       >
                         {fileIcon(node.name, node.type)}
@@ -646,6 +706,19 @@ export function CollaborativeWorkspace({ projectId, canInitialize = true, canRun
               >
                 <Play size={13} />
                 <span>{running ? "Running…" : "Run"}</span>
+              </button>
+            )}
+            {selectedFileId && view.nodes.get(selectedFileId)?.type === "file" && getFileCapability(view.nodes.get(selectedFileId)?.name).isPreviewable && (
+              <button
+                type="button"
+                className={`ide-preview-button ${previewOpen ? "is-active" : ""}`}
+                onClick={togglePreview}
+                title={previewOpen ? "Hide browser preview" : "Live browser preview"}
+                aria-label={previewOpen ? "Hide browser preview" : "Live browser preview"}
+                aria-pressed={previewOpen}
+              >
+                <Compass size={13} />
+                <span>{previewOpen ? "Previewing" : "Preview"}</span>
               </button>
             )}
             <button
@@ -701,20 +774,72 @@ export function CollaborativeWorkspace({ projectId, canInitialize = true, canRun
             </div>
           </div>
         </div>
-        <div className="ide-editor-area">
-          <EditorErrorBoundary
-            fileName={selectedFileId ? view.nodes.get(selectedFileId)?.name : undefined}
-            onReset={() => selectFile("")}
-          >
-            <Editor
-              doc={doc}
-              projectId={projectId}
-              fileId={selectedFileId}
-              workspaceReady={ready}
-              emptyWorkspace={view.nodes.size === 0}
-              onCreateFile={canInitialize ? () => setCreateFileRequest((request) => request + 1) : undefined}
+        <div className="ide-editor-area" ref={editorAreaRef}>
+          {(!previewOpen || !previewMaximized) && (
+            <div
+              className="ide-editor-pane"
+              style={{
+                flex: previewOpen ? `0 0 ${100 - previewWidthPercent}%` : "1 1 0%",
+                width: previewOpen ? `${100 - previewWidthPercent}%` : "100%",
+                minWidth: 0,
+                minHeight: 0,
+                height: "100%",
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              <EditorErrorBoundary
+                fileName={selectedFileId ? view.nodes.get(selectedFileId)?.name : undefined}
+                onReset={() => selectFile("")}
+              >
+                <Editor
+                  doc={doc}
+                  projectId={projectId}
+                  fileId={selectedFileId}
+                  workspaceReady={ready}
+                  emptyWorkspace={view.nodes.size === 0}
+                  onCreateFile={canInitialize ? () => setCreateFileRequest((request) => request + 1) : undefined}
+                />
+              </EditorErrorBoundary>
+            </div>
+          )}
+          {previewOpen && !previewMaximized && (
+            <div
+              className="ide-preview-resizer"
+              onPointerDown={startPreviewResize}
+              title="Drag to resize preview"
+              role="separator"
+              aria-orientation="vertical"
+              tabIndex={0}
             />
-          </EditorErrorBoundary>
+          )}
+          {previewOpen && (
+            <div
+              className="ide-preview-pane"
+              style={{
+                flex: previewMaximized ? "1 1 0%" : `0 0 ${previewWidthPercent}%`,
+                width: previewMaximized ? "100%" : `${previewWidthPercent}%`,
+                minWidth: 0,
+                minHeight: 0,
+                height: "100%",
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              <BrowserPreview
+                doc={doc}
+                view={view}
+                initialPath={activePreviewPath}
+                projectId={projectId}
+                isMaximized={previewMaximized}
+                onToggleMaximize={() => setPreviewMaximized((m) => !m)}
+                onClose={() => setPreviewOpen(false)}
+                onNavigateFile={(fileId) => {
+                  selectFile(fileId);
+                }}
+              />
+            </div>
+          )}
         </div>
         <BottomPanel open={panelOpen} onToggle={() => setPanelOpen((open) => !open)} output={output} running={running} />
       </main>
