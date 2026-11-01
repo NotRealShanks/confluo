@@ -29,22 +29,26 @@ public class RateLimitService {
     private final Map<String, Window> windows = new LinkedHashMap<>();
 
     public synchronized void check(String key) {
+        check(key, MAX_ATTEMPTS, WINDOW);
+    }
+
+    public synchronized void check(String key, int maxAttempts, Duration window) {
         Instant now = Instant.now();
-        windows.entrySet().removeIf(entry -> now.isAfter(entry.getValue().startedAt.plus(WINDOW)));
+        windows.entrySet().removeIf(entry -> now.isAfter(entry.getValue().startedAt.plus(entry.getValue().window)));
         Window current = windows.get(key);
         if (current == null) {
             if (windows.size() >= MAX_KEYS) {
                 windows.remove(windows.keySet().iterator().next());
             }
-            windows.put(key, new Window(now, 1));
+            windows.put(key, new Window(now, 1, window));
             return;
         }
-        if (current.attempts >= MAX_ATTEMPTS) {
+        if (current.attempts >= maxAttempts) {
             throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Too many requests");
         }
-        windows.put(key, new Window(current.startedAt, current.attempts + 1));
+        windows.put(key, new Window(current.startedAt, current.attempts + 1, window));
     }
 
-    private record Window(Instant startedAt, int attempts) {
+    private record Window(Instant startedAt, int attempts, Duration window) {
     }
 }
