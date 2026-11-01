@@ -120,6 +120,22 @@ app.get("/health", (_req: Request, res: Response) => {
   res.json({ status: "ok", service: "confluo-e2b-runner" });
 });
 
+// Service-to-service authentication middleware
+app.use((req: Request, res: Response, next) => {
+  const expectedToken = process.env.RUNNER_TOKEN;
+  if (!expectedToken) {
+    return next();
+  }
+  const providedToken =
+    (req.headers["x-runner-token"] as string) ||
+    req.headers.authorization?.replace(/^Bearer\s+/i, "");
+
+  if (!providedToken || providedToken !== expectedToken) {
+    return res.status(401).json({ error: "Unauthorized: Invalid or missing runner token" });
+  }
+  next();
+});
+
 app.post("/v1/execute", async (req: Request, res: Response) => {
   const { language, entrypoint, files } = req.body;
   const projectId = (req.headers["x-confluo-project"] as string) || "default";
@@ -128,12 +144,32 @@ app.post("/v1/execute", async (req: Request, res: Response) => {
     return res.status(400).json({ error: "Invalid request payload" });
   }
 
+  // Validate entrypoint against command injection / path traversal
+  const cleanLang = (language || "").toLowerCase();
+  const isShell = cleanLang === "shell" || cleanLang === "bash" || cleanLang === "sh";
+  if (!isShell && !/^[a-zA-Z0-9_\-./]+$/.test(entrypoint)) {
+    return res.status(400).json({ error: "Invalid entrypoint syntax" });
+  }
+
+  // Validate all file paths against directory traversal
+  for (const f of files) {
+    if (
+      typeof f.path !== "string" ||
+      !f.path ||
+      f.path.includes("..") ||
+      f.path.startsWith("/") ||
+      f.path.includes("\\") ||
+      f.path.includes("\0")
+    ) {
+      return res.status(400).json({ error: "Invalid file path in payload" });
+    }
+  }
+
   let sandbox: Sandbox | null = null;
   let timedOut = false;
 
   try {
     const command = buildCommand(language, entrypoint);
-    const cleanLang = (language || "").toLowerCase();
     console.log(`[E2B] [Project: ${projectId}] Launching sandbox for ${language} (${entrypoint})...`);
 
     sandbox = await Sandbox.create({
