@@ -98,7 +98,13 @@ describe("Editor component", () => {
     expect(capturedProps.options?.fontSize).toBe(14);
     expect(capturedProps.options?.tabSize).toBe(2);
     expect(capturedProps.options?.wordWrap).toBe("off");
-    expect(capturedProps.options?.minimap).toEqual({ enabled: false });
+    expect(capturedProps.options?.minimap).toEqual({
+      enabled: true,
+      renderCharacters: true,
+      side: "right",
+      showSlider: "mouseover",
+      maxColumn: 120,
+    });
     expect(capturedProps.options?.lineNumbers).toBe("on");
     expect(capturedProps.options?.insertSpaces).toBe(true);
     expect(capturedProps.options?.cursorBlinking).toBe("blink");

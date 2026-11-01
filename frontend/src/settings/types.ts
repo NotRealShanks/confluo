@@ -57,7 +57,7 @@ export const DEFAULT_SETTINGS: IdeSettings = {
   fontFamily: FONT_FAMILY_PRESETS[0].value,
   tabSize: 2,
   wordWrap: "off",
-  minimap: false,
+  minimap: true,
   lineNumbers: "on",
   insertSpaces: true,
   cursorBlinking: "blink",

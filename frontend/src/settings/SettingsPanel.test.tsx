@@ -156,7 +156,7 @@ describe("SettingsPanel component", () => {
     const saved = JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY) || "{}");
     expect(saved.fontSize).toBe(18);
     expect(saved.wordWrap).toBe("on");
-    expect(saved.minimap).toBe(true);
+    expect(saved.minimap).toBe(false);
     expect(saved.tabSize).toBe(4);
     expect(saved.cursorBlinking).toBe("smooth");
   });
