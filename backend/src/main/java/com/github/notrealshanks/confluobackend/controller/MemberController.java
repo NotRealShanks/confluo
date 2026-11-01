@@ -17,8 +17,8 @@ import org.springframework.web.bind.annotation.RestController;
 import com.github.notrealshanks.confluobackend.dto.AddMemberRequest;
 import com.github.notrealshanks.confluobackend.dto.MemberResponse;
 import com.github.notrealshanks.confluobackend.dto.UpdateMemberRoleRequest;
-import com.github.notrealshanks.confluobackend.service.MemberService;
 import com.github.notrealshanks.confluobackend.security.GuestPrincipal;
+import com.github.notrealshanks.confluobackend.service.MemberService;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -61,6 +61,13 @@ public class MemberController {
     public void remove(Authentication authentication, @PathVariable String projectId, @PathVariable String userId) {
         rejectGuest(authentication);
         memberService.remove(authentication.getName(), projectId, userId);
+    }
+
+    @PostMapping("/accept-invitation")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void acceptInvitation(Authentication authentication, @PathVariable String projectId) {
+        rejectGuest(authentication);
+        memberService.acceptInvitation(authentication.getName(), projectId);
     }
 
     private static void rejectGuest(Authentication authentication) {

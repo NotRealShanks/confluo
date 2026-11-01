@@ -2,13 +2,22 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import {
   Activity,
   AlertCircle,
+  History,
+  LogOut,
   MessageSquare,
+  RefreshCw,
   Send,
+  ShieldCheck,
+  UserCheck,
+  UserMinus,
+  UserPlus,
   Users,
   X,
 } from "lucide-react";
 import { useProjectChat } from "./useProjectChat";
 import { useMemberActivity } from "./useMemberActivity";
+import { useProjectActivities } from "./useProjectActivities";
+import type { ProjectActivity, ProjectActivityType } from "../api/activity";
 import { colorFor } from "../lib/color";
 
 export interface ProjectChatPanelProps {
@@ -54,6 +63,71 @@ function ChatAvatar({
   );
 }
 
+function getActivityIcon(actionType: ProjectActivityType) {
+  switch (actionType) {
+    case "MEMBER_INVITED":
+      return <UserPlus size={12} className="text-blue-400 shrink-0" />;
+    case "MEMBER_JOINED":
+      return <UserCheck size={12} className="text-emerald-400 shrink-0" />;
+    case "MEMBER_REMOVED":
+      return <UserMinus size={12} className="text-red-400 shrink-0" />;
+    case "MEMBER_LEFT":
+      return <LogOut size={12} className="text-amber-400 shrink-0" />;
+    case "MEMBER_ROLE_UPDATED":
+      return <ShieldCheck size={12} className="text-purple-400 shrink-0" />;
+    default:
+      return <History size={12} className="text-gray-400 shrink-0" />;
+  }
+}
+
+function renderActivityDescription(act: ProjectActivity) {
+  switch (act.actionType) {
+    case "MEMBER_INVITED": {
+      const role = act.metadata?.role ? String(act.metadata.role).toLowerCase() : "member";
+      return (
+        <span>
+          <strong className="text-white">{act.actorName}</strong> invited{" "}
+          <strong className="text-white">{act.targetUserName || "a member"}</strong> as {role}
+        </span>
+      );
+    }
+    case "MEMBER_JOINED":
+      return (
+        <span>
+          <strong className="text-white">{act.actorName}</strong> joined the project
+        </span>
+      );
+    case "MEMBER_REMOVED":
+      return (
+        <span>
+          <strong className="text-white">{act.actorName}</strong> removed{" "}
+          <strong className="text-white">{act.targetUserName || "a member"}</strong>
+        </span>
+      );
+    case "MEMBER_LEFT":
+      return (
+        <span>
+          <strong className="text-white">{act.actorName}</strong> left the project
+        </span>
+      );
+    case "MEMBER_ROLE_UPDATED": {
+      const newRole = act.metadata?.newRole ? String(act.metadata.newRole).toLowerCase() : "member";
+      return (
+        <span>
+          <strong className="text-white">{act.actorName}</strong> changed{" "}
+          <strong className="text-white">{act.targetUserName || "a member"}</strong>&apos;s role to {newRole}
+        </span>
+      );
+    }
+    default:
+      return (
+        <span>
+          <strong className="text-white">{act.actorName}</strong> updated project membership
+        </span>
+      );
+  }
+}
+
 export function ProjectChatPanel({ projectId, onClose }: ProjectChatPanelProps) {
   const [activeTab, setActiveTab] = useState<"messages" | "activity">("messages");
   const [inputText, setInputText] = useState("");
@@ -74,6 +148,16 @@ export function ProjectChatPanel({ projectId, onClose }: ProjectChatPanelProps) 
   } = useProjectChat({ projectId });
 
   const { activities, onlineMembers } = useMemberActivity();
+
+  const {
+    activities: persistentActivities,
+    loading: historyLoading,
+    loadingMore: historyLoadingMore,
+    hasMore: historyHasMore,
+    error: historyError,
+    loadMore: loadMoreHistory,
+    refresh: refreshHistory,
+  } = useProjectActivities({ projectId, enabled: activeTab === "activity" });
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -115,6 +199,24 @@ export function ProjectChatPanel({ projectId, onClose }: ProjectChatPanelProps) 
   const formatActivityTime = (date: Date) => {
     try {
       return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    } catch {
+      return "";
+    }
+  };
+
+  const formatHistoryTime = (isoString: string) => {
+    try {
+      const date = new Date(isoString);
+      const now = new Date();
+      const isToday = date.toDateString() === now.toDateString();
+      if (isToday) {
+        return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      }
+      return (
+        date.toLocaleDateString([], { month: "short", day: "numeric" }) +
+        " " +
+        date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+      );
     } catch {
       return "";
     }
@@ -327,6 +429,80 @@ export function ProjectChatPanel({ projectId, onClose }: ProjectChatPanelProps) 
                 <p className="text-xs text-[#858585] italic">No members currently connected.</p>
               )}
             </div>
+          </div>
+
+          {/* Persistent Project History */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-[#e1e1e1]">
+                <History size={13} className="text-blue-400" />
+                <span>Project History</span>
+              </div>
+              {historyError && (
+                <button
+                  type="button"
+                  onClick={() => void refreshHistory()}
+                  className="text-[11px] text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                >
+                  <RefreshCw size={11} />
+                  <span>Retry</span>
+                </button>
+              )}
+            </div>
+
+            {historyLoading && (
+              <div className="text-center py-4 text-xs text-[#858585] italic">
+                Loading project history…
+              </div>
+            )}
+
+            {!historyLoading && historyError && (
+              <div className="p-2 rounded bg-[#331111] border border-[#552222] text-xs text-red-400">
+                {historyError}
+              </div>
+            )}
+
+            {!historyLoading && !historyError && persistentActivities.length === 0 && (
+              <div className="text-center py-4 text-xs text-[#858585] italic">
+                No project activity recorded yet.
+              </div>
+            )}
+
+            {!historyLoading && !historyError && persistentActivities.length > 0 && (
+              <div className="space-y-1.5">
+                {persistentActivities.map((act) => (
+                  <div
+                    key={act.id}
+                    className="flex items-start justify-between text-[11px] p-2 rounded bg-[#252526] border border-[#2d2d2d]"
+                  >
+                    <div className="flex items-start gap-2 min-w-0 flex-1">
+                      <div className="mt-0.5">
+                        {getActivityIcon(act.actionType)}
+                      </div>
+                      <div className="text-[#cccccc] break-words flex-1 leading-snug">
+                        {renderActivityDescription(act)}
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-[#858585] shrink-0 ml-2 whitespace-nowrap">
+                      {formatHistoryTime(act.timestamp)}
+                    </span>
+                  </div>
+                ))}
+
+                {historyHasMore && (
+                  <div className="pt-1 flex justify-center">
+                    <button
+                      type="button"
+                      onClick={() => void loadMoreHistory()}
+                      disabled={historyLoadingMore}
+                      className="text-xs text-blue-400 hover:text-blue-300 disabled:opacity-50 transition-colors"
+                    >
+                      {historyLoadingMore ? "Loading more history…" : "Load more history"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Session Join / Leave Activity Notices */}

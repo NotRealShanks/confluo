@@ -16,6 +16,7 @@ import com.github.notrealshanks.confluobackend.dto.AddMemberRequest;
 import com.github.notrealshanks.confluobackend.dto.MemberResponse;
 import com.github.notrealshanks.confluobackend.model.ProjectMember;
 import com.github.notrealshanks.confluobackend.model.Project;
+import com.github.notrealshanks.confluobackend.model.ProjectActivityType;
 import com.github.notrealshanks.confluobackend.model.Role;
 import com.github.notrealshanks.confluobackend.model.User;
 import com.github.notrealshanks.confluobackend.repository.ProjectRepository;
@@ -32,6 +33,7 @@ public class MemberService {
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
     private final LiveblocksAuthService liveblocksAuthService;
+    private final ProjectActivityService projectActivityService;
 
     public List<MemberResponse> list(String callerId, String projectId) {
         Project project = requireOwner(callerId, projectId);
@@ -55,6 +57,17 @@ public class MemberService {
         List<ProjectMember> members = new ArrayList<>(project.getMembers());
         members.add(member);
         saveMembers(project, members);
+
+        if (projectActivityService != null) {
+            projectActivityService.recordActivity(
+                    projectId,
+                    callerId,
+                    ProjectActivityType.MEMBER_INVITED,
+                    target.getId(),
+                    Map.of("role", request.role().name())
+            );
+        }
+
         return toResponse(member, target);
     }
 
@@ -73,6 +86,17 @@ public class MemberService {
                 .map(m -> m.userId().equals(targetUserId) ? updated : m)
                 .toList();
         saveMembers(project, members);
+
+        if (projectActivityService != null) {
+            projectActivityService.recordActivity(
+                    projectId,
+                    callerId,
+                    ProjectActivityType.MEMBER_ROLE_UPDATED,
+                    targetUserId,
+                    Map.of("previousRole", current.name(), "newRole", role.name())
+            );
+        }
+
         return toResponse(updated, userRepository.findById(targetUserId).orElse(null));
     }
 
@@ -95,6 +119,30 @@ public class MemberService {
         // Revoke active Liveblocks session to terminate connection
         if (liveblocksAuthService != null) {
             liveblocksAuthService.revokeRoomAccess(projectId, targetUserId);
+        }
+
+        if (projectActivityService != null) {
+            boolean isVoluntaryLeave = callerId.equals(targetUserId);
+            projectActivityService.recordActivity(
+                    projectId,
+                    callerId,
+                    isVoluntaryLeave ? ProjectActivityType.MEMBER_LEFT : ProjectActivityType.MEMBER_REMOVED,
+                    isVoluntaryLeave ? null : targetUserId,
+                    Map.of("role", target.name())
+            );
+        }
+    }
+
+    public void acceptInvitation(String callerId, String projectId) {
+        Access access = projectService.requireAccess(callerId, projectId);
+        if (projectActivityService != null) {
+            projectActivityService.recordActivity(
+                    projectId,
+                    callerId,
+                    ProjectActivityType.MEMBER_JOINED,
+                    null,
+                    Map.of("role", access.role().name())
+            );
         }
     }
 
