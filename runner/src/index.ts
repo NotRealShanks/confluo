@@ -12,31 +12,109 @@ const PORT = process.env.PORT || 4000;
 const TIMEOUT_MS = 25_000;
 
 function buildCommand(language: string, entrypoint: string): string {
-  const cleanLang = language.toLowerCase();
+  const cleanLang = (language || "").toLowerCase();
   switch (cleanLang) {
+    case "shell":
+    case "bash":
+    case "sh":
+      return entrypoint;
+    case "cpp-compile":
+      return `g++ -O2 -o a.out "${entrypoint}"`;
+    case "cpp-run": {
+      const target = entrypoint.replace(/^\.\//, "");
+      if (target.endsWith(".cpp") || target.endsWith(".cc")) {
+        return `g++ -O2 -o a.out "${target}" && ./a.out`;
+      }
+      return `if [ ! -f "${target}" ]; then g++ -O2 -o "${target}" *.cpp; fi && ./"${target}"`;
+    }
+    case "c-compile":
+      return `gcc -O2 -o a.out "${entrypoint}"`;
+    case "c-run": {
+      const target = entrypoint.replace(/^\.\//, "");
+      if (target.endsWith(".c")) {
+        return `gcc -O2 -o a.out "${target}" && ./a.out`;
+      }
+      return `if [ ! -f "${target}" ]; then gcc -O2 -o "${target}" *.c; fi && ./"${target}"`;
+    }
     case "cpp":
     case "c++":
-      return `g++ -O2 -o /tmp/runner_bin "${entrypoint}" && /tmp/runner_bin`;
+      if (entrypoint.startsWith("g++") || entrypoint.startsWith("./")) {
+        return entrypoint;
+      }
+      return `g++ -O2 -o a.out "${entrypoint}" && ./a.out`;
     case "c":
-      return `gcc -O2 -o /tmp/runner_bin "${entrypoint}" && /tmp/runner_bin`;
+      if (entrypoint.startsWith("gcc") || entrypoint.startsWith("./")) {
+        return entrypoint;
+      }
+      return `gcc -O2 -o a.out "${entrypoint}" && ./a.out`;
     case "python":
     case "py":
+      if (entrypoint.startsWith("python")) {
+        return entrypoint;
+      }
       return `python3 "${entrypoint}"`;
     case "javascript":
     case "js":
+      if (entrypoint.startsWith("node")) {
+        return entrypoint;
+      }
       return `node "${entrypoint}"`;
     case "typescript":
     case "ts":
       return `npx tsx "${entrypoint}"`;
+    case "csharp":
+    case "cs":
+      return `mcs "${entrypoint}" -out:a.exe && mono a.exe`;
     case "java": {
       const fileName = path.basename(entrypoint, ".java");
       const dir = path.dirname(entrypoint);
       return `javac "${entrypoint}" && java -cp "${dir === "." ? "." : dir}" "${fileName}"`;
     }
+    case "kotlin":
+    case "kt":
+      return `kotlinc "${entrypoint}" -include-runtime -d app.jar && java -jar app.jar`;
+    case "scala":
+      return `scala "${entrypoint}"`;
+    case "go":
+      return `go run "${entrypoint}"`;
+    case "rust":
+    case "rs":
+      return `rustc -O -o a.out "${entrypoint}" && ./a.out`;
+    case "php":
+      return `php "${entrypoint}"`;
+    case "ruby":
+    case "rb":
+      return `ruby "${entrypoint}"`;
+    case "swift":
+      return `swift "${entrypoint}"`;
+    case "dart":
+      return `dart run "${entrypoint}"`;
+    case "r":
+      return `Rscript "${entrypoint}"`;
+    case "sql":
+      return `sqlite3 :memory: < "${entrypoint}"`;
     default:
-      throw new Error(`Unsupported execution language: ${language}`);
+      return entrypoint;
   }
 }
+
+const toolPackages: Record<string, { checkCmd: string; installCmd: string }> = {
+  java: { checkCmd: "which javac || true", installCmd: "sudo apt update -qq && sudo apt install -y -qq default-jdk-headless" },
+  rust: { checkCmd: "which rustc || true", installCmd: "sudo apt update -qq && sudo apt install -y -qq rustc" },
+  rs: { checkCmd: "which rustc || true", installCmd: "sudo apt update -qq && sudo apt install -y -qq rustc" },
+  go: { checkCmd: "which go || true", installCmd: "sudo apt update -qq && sudo apt install -y -qq golang-go" },
+  php: { checkCmd: "which php || true", installCmd: "sudo apt update -qq && sudo apt install -y -qq php-cli" },
+  ruby: { checkCmd: "which ruby || true", installCmd: "sudo apt update -qq && sudo apt install -y -qq ruby" },
+  rb: { checkCmd: "which ruby || true", installCmd: "sudo apt update -qq && sudo apt install -y -qq ruby" },
+  r: { checkCmd: "which Rscript || true", installCmd: "sudo apt update -qq && sudo apt install -y -qq r-base-core" },
+  sql: { checkCmd: "which sqlite3 || true", installCmd: "sudo apt update -qq && sudo apt install -y -qq sqlite3" },
+  csharp: { checkCmd: "which mcs || which dotnet || true", installCmd: "sudo apt update -qq && sudo apt install -y -qq mono-mcs mono-runtime" },
+  cs: { checkCmd: "which mcs || which dotnet || true", installCmd: "sudo apt update -qq && sudo apt install -y -qq mono-mcs mono-runtime" },
+  kotlin: { checkCmd: "which kotlinc || true", installCmd: "sudo apt update -qq && sudo apt install -y -qq default-jdk-headless kotlin" },
+  kt: { checkCmd: "which kotlinc || true", installCmd: "sudo apt update -qq && sudo apt install -y -qq default-jdk-headless kotlin" },
+  scala: { checkCmd: "which scala || true", installCmd: "sudo apt update -qq && sudo apt install -y -qq scala" },
+  dart: { checkCmd: "which dart || true", installCmd: "sudo apt update -qq && sudo apt install -y -qq dart" },
+};
 
 app.get("/health", (_req: Request, res: Response) => {
   res.json({ status: "ok", service: "confluo-e2b-runner" });
@@ -55,6 +133,7 @@ app.post("/v1/execute", async (req: Request, res: Response) => {
 
   try {
     const command = buildCommand(language, entrypoint);
+    const cleanLang = (language || "").toLowerCase();
     console.log(`[E2B] [Project: ${projectId}] Launching sandbox for ${language} (${entrypoint})...`);
 
     sandbox = await Sandbox.create({
@@ -65,12 +144,13 @@ app.post("/v1/execute", async (req: Request, res: Response) => {
     const workDir = "/home/user/project";
     await sandbox.commands.run(`mkdir -p ${workDir}`);
 
-    // If language is Java and javac isn't present, install JDK
-    if (language.toLowerCase() === "java") {
-      const checkJava = await sandbox.commands.run("which javac || true");
-      if (!checkJava.stdout.trim()) {
-        console.log("[E2B] Installing OpenJDK headless...");
-        await sandbox.commands.run("sudo apt update -qq && sudo apt install -y -qq default-jdk-headless");
+    // Check runtime dependencies and auto-install if missing
+    const toolInfo = toolPackages[cleanLang];
+    if (toolInfo) {
+      const checkRes = await sandbox.commands.run(toolInfo.checkCmd);
+      if (!checkRes.stdout.trim()) {
+        console.log(`[E2B] Installing runtime for ${cleanLang}...`);
+        await sandbox.commands.run(toolInfo.installCmd);
       }
     }
 
@@ -133,4 +213,3 @@ app.post("/v1/execute", async (req: Request, res: Response) => {
 app.listen(PORT, () => {
   console.log(`Confluo E2B Runner listening on http://localhost:${PORT}`);
 });
-

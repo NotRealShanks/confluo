@@ -1,10 +1,22 @@
 export type SupportedExecutionLanguage =
-  | "java"
+  | "python"
   | "javascript"
   | "typescript"
-  | "python"
   | "c"
-  | "cpp";
+  | "cpp"
+  | "csharp"
+  | "java"
+  | "kotlin"
+  | "scala"
+  | "go"
+  | "rust"
+  | "php"
+  | "ruby"
+  | "swift"
+  | "dart"
+  | "r"
+  | "sql"
+  | "shell";
 
 export type FileAction = "run" | "preview" | "none";
 
@@ -18,7 +30,8 @@ export interface FileCapability {
 
 /**
  * Determines whether a file has supported execution or preview actions in Confluo.
- * Only file types with verified backend execution support are marked executable.
+ * Supports all popular programming languages (Python, JS, TS, Java, C, C++, C#, PHP, Swift,
+ * Kotlin, Go, Rust, Scala, Dart, R, Ruby, SQL, Shell) matching online multi-language compilers like Programiz.
  */
 export function getFileCapability(filename?: string | null): FileCapability {
   if (!filename || typeof filename !== "string") {
@@ -51,19 +64,19 @@ export function getFileCapability(filename?: string | null): FileCapability {
   const dot = lower.lastIndexOf(".");
   const ext = dot >= 0 ? lower.slice(dot) : "";
 
-  // Check verified backend execution runtimes: Java, Node.js/TS, Python, C, C++
   switch (ext) {
-    case ".java":
+    case ".py":
       return {
         filename: cleanName,
         action: "run",
         isExecutable: true,
         isPreviewable: false,
-        executionLanguage: "java",
+        executionLanguage: "python",
       };
 
     case ".js":
     case ".mjs":
+    case ".cjs":
       return {
         filename: cleanName,
         action: "run",
@@ -81,13 +94,13 @@ export function getFileCapability(filename?: string | null): FileCapability {
         executionLanguage: "typescript",
       };
 
-    case ".py":
+    case ".java":
       return {
         filename: cleanName,
         action: "run",
         isExecutable: true,
         isPreviewable: false,
-        executionLanguage: "python",
+        executionLanguage: "java",
       };
 
     case ".c":
@@ -108,6 +121,117 @@ export function getFileCapability(filename?: string | null): FileCapability {
         isExecutable: true,
         isPreviewable: false,
         executionLanguage: "cpp",
+      };
+
+    case ".cs":
+    case ".csx":
+      return {
+        filename: cleanName,
+        action: "run",
+        isExecutable: true,
+        isPreviewable: false,
+        executionLanguage: "csharp",
+      };
+
+    case ".php":
+      return {
+        filename: cleanName,
+        action: "run",
+        isExecutable: true,
+        isPreviewable: false,
+        executionLanguage: "php",
+      };
+
+    case ".swift":
+      return {
+        filename: cleanName,
+        action: "run",
+        isExecutable: true,
+        isPreviewable: false,
+        executionLanguage: "swift",
+      };
+
+    case ".kt":
+    case ".kts":
+      return {
+        filename: cleanName,
+        action: "run",
+        isExecutable: true,
+        isPreviewable: false,
+        executionLanguage: "kotlin",
+      };
+
+    case ".go":
+      return {
+        filename: cleanName,
+        action: "run",
+        isExecutable: true,
+        isPreviewable: false,
+        executionLanguage: "go",
+      };
+
+    case ".rs":
+      return {
+        filename: cleanName,
+        action: "run",
+        isExecutable: true,
+        isPreviewable: false,
+        executionLanguage: "rust",
+      };
+
+    case ".scala":
+      return {
+        filename: cleanName,
+        action: "run",
+        isExecutable: true,
+        isPreviewable: false,
+        executionLanguage: "scala",
+      };
+
+    case ".dart":
+      return {
+        filename: cleanName,
+        action: "run",
+        isExecutable: true,
+        isPreviewable: false,
+        executionLanguage: "dart",
+      };
+
+    case ".r":
+      return {
+        filename: cleanName,
+        action: "run",
+        isExecutable: true,
+        isPreviewable: false,
+        executionLanguage: "r",
+      };
+
+    case ".rb":
+      return {
+        filename: cleanName,
+        action: "run",
+        isExecutable: true,
+        isPreviewable: false,
+        executionLanguage: "ruby",
+      };
+
+    case ".sql":
+      return {
+        filename: cleanName,
+        action: "run",
+        isExecutable: true,
+        isPreviewable: false,
+        executionLanguage: "sql",
+      };
+
+    case ".sh":
+    case ".bash":
+      return {
+        filename: cleanName,
+        action: "run",
+        isExecutable: true,
+        isPreviewable: false,
+        executionLanguage: "shell",
       };
 
     case ".html":
@@ -136,4 +260,3 @@ export function isExecutableFile(filename?: string | null): boolean {
 export function isPreviewableFile(filename?: string | null): boolean {
   return getFileCapability(filename).isPreviewable;
 }
-

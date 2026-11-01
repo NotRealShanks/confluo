@@ -157,6 +157,7 @@ function BottomPanel({
   doc,
   view,
   projectId,
+  projectName,
   onClearOutput,
 }: {
   open: boolean;
@@ -167,6 +168,7 @@ function BottomPanel({
   doc?: Y.Doc;
   view?: TreeView;
   projectId?: string;
+  projectName?: string;
   onClearOutput?: () => void;
 }) {
   const [tab, setTab] = useState<PanelTab>("output");
@@ -348,7 +350,7 @@ function BottomPanel({
       {open && (
         <div className="ide-panel-body flex-1 min-h-0 w-full overflow-hidden flex flex-col">
           {tab === "terminal" && doc && view && projectId ? (
-            <TerminalPanel projectId={projectId} doc={doc} view={view} />
+            <TerminalPanel projectId={projectId} projectName={projectName} doc={doc} view={view} />
           ) : tab === "output" ? (
             <div className="flex flex-col h-full w-full bg-[#1e1e1e] text-[#d4d4d4] font-mono text-xs overflow-hidden">
               <div className="flex items-center justify-between px-3 py-1 bg-[#252526] border-b border-[#2d2d2d] shrink-0 text-xs">
@@ -391,11 +393,13 @@ function BottomPanel({
 
 export function CollaborativeWorkspace({
   projectId,
+  projectName,
   canInitialize = true,
   canRun = true,
   isGuest = false,
 }: {
   projectId: string;
+  projectName?: string;
   canInitialize?: boolean;
   canRun?: boolean;
   isGuest?: boolean;
@@ -1029,6 +1033,7 @@ export function CollaborativeWorkspace({
           doc={doc}
           view={view}
           projectId={projectId}
+          projectName={projectName}
           onClearOutput={() => setOutput("")}
         />
       </main>
@@ -1073,7 +1078,12 @@ function ProjectView({ id }: { id: string }) {
       <RoomErrorBoundary onRetry={() => setRoomAttempt((attempt) => attempt + 1)}>
         <Room key={roomAttempt} projectId={project.id}>
           <ProjectHeader project={project} />
-          <CollaborativeWorkspace projectId={project.id} canInitialize={project.role !== "VIEWER"} canRun={project.role !== "VIEWER"} />
+          <CollaborativeWorkspace
+            projectId={project.id}
+            projectName={project.title}
+            canInitialize={project.role !== "VIEWER"}
+            canRun={project.role !== "VIEWER"}
+          />
         </Room>
       </RoomErrorBoundary>
     </div>

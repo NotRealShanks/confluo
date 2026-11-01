@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getFileCapability, isExecutableFile, isPreviewableFile } from "./fileCapabilities";
 
-describe("fileCapabilities", () => {
+describe("fileCapabilities - Multi-Language Support (Programiz Parity)", () => {
   describe("Executable files", () => {
     it("recognizes Java files (.java)", () => {
       const cap = getFileCapability("Main.java");
@@ -11,12 +11,13 @@ describe("fileCapabilities", () => {
       expect(isExecutableFile("Calculator.java")).toBe(true);
     });
 
-    it("recognizes JavaScript files (.js, .mjs)", () => {
+    it("recognizes JavaScript files (.js, .mjs, .cjs)", () => {
       const cap = getFileCapability("index.js");
       expect(cap.isExecutable).toBe(true);
       expect(cap.action).toBe("run");
       expect(cap.executionLanguage).toBe("javascript");
       expect(isExecutableFile("server.mjs")).toBe(true);
+      expect(isExecutableFile("bundle.cjs")).toBe(true);
     });
 
     it("recognizes TypeScript files (.ts)", () => {
@@ -47,6 +48,69 @@ describe("fileCapabilities", () => {
       expect(getFileCapability("matrix.cxx").isExecutable).toBe(true);
     });
 
+    it("recognizes C# files (.cs, .csx)", () => {
+      expect(getFileCapability("Program.cs").isExecutable).toBe(true);
+      expect(getFileCapability("Program.cs").executionLanguage).toBe("csharp");
+      expect(getFileCapability("script.csx").isExecutable).toBe(true);
+    });
+
+    it("recognizes Rust files (.rs)", () => {
+      expect(getFileCapability("main.rs").isExecutable).toBe(true);
+      expect(getFileCapability("main.rs").executionLanguage).toBe("rust");
+    });
+
+    it("recognizes Go files (.go)", () => {
+      expect(getFileCapability("main.go").isExecutable).toBe(true);
+      expect(getFileCapability("main.go").executionLanguage).toBe("go");
+    });
+
+    it("recognizes PHP files (.php)", () => {
+      expect(getFileCapability("index.php").isExecutable).toBe(true);
+      expect(getFileCapability("index.php").executionLanguage).toBe("php");
+    });
+
+    it("recognizes Ruby files (.rb)", () => {
+      expect(getFileCapability("app.rb").isExecutable).toBe(true);
+      expect(getFileCapability("app.rb").executionLanguage).toBe("ruby");
+    });
+
+    it("recognizes Kotlin files (.kt, .kts)", () => {
+      expect(getFileCapability("Main.kt").isExecutable).toBe(true);
+      expect(getFileCapability("Main.kt").executionLanguage).toBe("kotlin");
+    });
+
+    it("recognizes Swift files (.swift)", () => {
+      expect(getFileCapability("main.swift").isExecutable).toBe(true);
+      expect(getFileCapability("main.swift").executionLanguage).toBe("swift");
+    });
+
+    it("recognizes Dart files (.dart)", () => {
+      expect(getFileCapability("main.dart").isExecutable).toBe(true);
+      expect(getFileCapability("main.dart").executionLanguage).toBe("dart");
+    });
+
+    it("recognizes Scala files (.scala)", () => {
+      expect(getFileCapability("Main.scala").isExecutable).toBe(true);
+      expect(getFileCapability("Main.scala").executionLanguage).toBe("scala");
+    });
+
+    it("recognizes R files (.r, .R)", () => {
+      expect(getFileCapability("script.r").isExecutable).toBe(true);
+      expect(getFileCapability("script.r").executionLanguage).toBe("r");
+      expect(getFileCapability("analysis.R").isExecutable).toBe(true);
+    });
+
+    it("recognizes SQL files (.sql)", () => {
+      expect(getFileCapability("queries.sql").isExecutable).toBe(true);
+      expect(getFileCapability("queries.sql").executionLanguage).toBe("sql");
+    });
+
+    it("recognizes Shell script files (.sh, .bash)", () => {
+      expect(getFileCapability("build.sh").isExecutable).toBe(true);
+      expect(getFileCapability("build.sh").executionLanguage).toBe("shell");
+      expect(getFileCapability("deploy.bash").isExecutable).toBe(true);
+    });
+
     it("handles uppercase extensions gracefully", () => {
       expect(getFileCapability("PROGRAM.JAVA").isExecutable).toBe(true);
       expect(getFileCapability("INDEX.JS").isExecutable).toBe(true);
@@ -54,11 +118,14 @@ describe("fileCapabilities", () => {
       expect(getFileCapability("SCRIPT.PY").isExecutable).toBe(true);
       expect(getFileCapability("MAIN.C").isExecutable).toBe(true);
       expect(getFileCapability("APP.CPP").isExecutable).toBe(true);
+      expect(getFileCapability("MAIN.RS").isExecutable).toBe(true);
+      expect(getFileCapability("MAIN.GO").isExecutable).toBe(true);
     });
 
     it("handles multiple dots for executable files", () => {
       expect(getFileCapability("app.spec.js").isExecutable).toBe(true);
       expect(getFileCapability("my.script.py").isExecutable).toBe(true);
+      expect(getFileCapability("algo.v2.cpp").isExecutable).toBe(true);
     });
   });
 
@@ -99,32 +166,40 @@ describe("fileCapabilities", () => {
 
     it("excludes media and PDFs (.png, .jpg, .svg, .pdf)", () => {
       expect(getFileCapability("photo.png").isExecutable).toBe(false);
-      expect(getFileCapability("icon.svg").isExecutable).toBe(false);
-      expect(getFileCapability("doc.pdf").isExecutable).toBe(false);
+      expect(getFileCapability("avatar.jpg").isExecutable).toBe(false);
+      expect(getFileCapability("logo.svg").isExecutable).toBe(false);
+      expect(getFileCapability("document.pdf").isExecutable).toBe(false);
     });
+  });
 
-    it("identifies HTML files as previewable but not executable", () => {
+  describe("Previewable files", () => {
+    it("marks HTML files as previewable (.html, .htm)", () => {
       const cap = getFileCapability("index.html");
+      expect(cap.isPreviewable).toBe(true);
       expect(cap.isExecutable).toBe(false);
       expect(cap.action).toBe("preview");
-      expect(cap.isPreviewable).toBe(true);
-      expect(isPreviewableFile("index.html")).toBe(true);
       expect(isPreviewableFile("about.htm")).toBe(true);
-      expect(isPreviewableFile("INDEX.HTML")).toBe(true);
     });
 
-    it("handles extensionless files", () => {
-      expect(getFileCapability("Dockerfile").isExecutable).toBe(false);
-      expect(getFileCapability("LICENSE").isExecutable).toBe(false);
-      expect(getFileCapability("Makefile").isExecutable).toBe(false);
-      expect(getFileCapability("notes").isExecutable).toBe(false);
+    it("does not mark non-HTML files as previewable", () => {
+      expect(isPreviewableFile("style.css")).toBe(false);
+      expect(isPreviewableFile("main.js")).toBe(false);
+      expect(isPreviewableFile("app.py")).toBe(false);
     });
+  });
 
-    it("handles empty or null input", () => {
-      expect(getFileCapability("").isExecutable).toBe(false);
+  describe("Edge cases", () => {
+    it("handles null, undefined, and empty string safely", () => {
       expect(getFileCapability(null).isExecutable).toBe(false);
       expect(getFileCapability(undefined).isExecutable).toBe(false);
+      expect(getFileCapability("").isExecutable).toBe(false);
+      expect(getFileCapability("   ").isExecutable).toBe(false);
+    });
+
+    it("handles files with no extension", () => {
+      expect(getFileCapability("Dockerfile").isExecutable).toBe(false);
+      expect(getFileCapability("Makefile").isExecutable).toBe(false);
+      expect(getFileCapability("LICENSE").isExecutable).toBe(false);
     });
   });
 });
-

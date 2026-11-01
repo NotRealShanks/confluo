@@ -4,6 +4,16 @@ import { languageForFilename } from "./language";
 describe("languageForFilename", () => {
   it.each([
     ["Main.java", "java"],
+    ["main.rs", "rust"],
+    ["main.go", "go"],
+    ["index.php", "php"],
+    ["app.rb", "ruby"],
+    ["Main.kt", "kotlin"],
+    ["main.swift", "swift"],
+    ["main.dart", "dart"],
+    ["Main.scala", "scala"],
+    ["analysis.r", "r"],
+    ["Program.cs", "csharp"],
     ["component.TSX", "typescript"],
     ["script.py", "python"],
     ["query.SQL", "sql"],
