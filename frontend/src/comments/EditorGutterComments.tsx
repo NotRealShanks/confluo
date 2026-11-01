@@ -67,7 +67,9 @@ export function EditorGutterComments({
 
     const disposables = [
       editor.onMouseMove((e) => {
-        const line = e.target.position?.lineNumber;
+        const line =
+          e.target.position?.lineNumber ??
+          (e.target as unknown as { range?: { startLineNumber?: number } }).range?.startLineNumber;
         if (typeof line === "number" && line > 0) {
           if (clearHoverTimeoutRef.current) {
             clearTimeout(clearHoverTimeoutRef.current);
@@ -84,7 +86,7 @@ export function EditorGutterComments({
           if (!isHoveringButtonRef.current) {
             setHoveredLine(null);
           }
-        }, 150);
+        }, 400);
       }),
       editor.onDidScrollChange(() => {
         setScrollVersion((v) => v + 1);
@@ -160,7 +162,6 @@ export function EditorGutterComments({
             }`}
             style={{ top: `${top}px`, left: `${buttonLeft}px` }}
             onPointerDown={(e) => {
-              e.preventDefault();
               e.stopPropagation();
             }}
             onClick={(e) => {
@@ -199,10 +200,9 @@ export function EditorGutterComments({
               isHoveringButtonRef.current = false;
               clearHoverTimeoutRef.current = setTimeout(() => {
                 setHoveredLine(null);
-              }, 150);
+              }, 400);
             }}
             onPointerDown={(e) => {
-              e.preventDefault();
               e.stopPropagation();
             }}
             onClick={(e) => {
