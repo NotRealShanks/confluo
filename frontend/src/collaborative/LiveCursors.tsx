@@ -20,9 +20,14 @@ export function LiveCursors({ fileId, editorInstance, containerRef }: LiveCursor
     scrollLeft: editorInstance?.getScrollLeft() ?? 0,
   }));
 
+  const [containerSize, setContainerSize] = useState(() => ({
+    width: typeof window !== "undefined" ? window.innerWidth : 1920,
+    height: typeof window !== "undefined" ? window.innerHeight : 1080,
+  }));
+
   useEffect(() => {
     if (!editorInstance) {
-      setScroll({ scrollTop: 0, scrollLeft: 0 });
+      queueMicrotask(() => setScroll({ scrollTop: 0, scrollLeft: 0 }));
       return;
     }
     const update = () => {
@@ -38,9 +43,21 @@ export function LiveCursors({ fileId, editorInstance, containerRef }: LiveCursor
     };
   }, [editorInstance]);
 
-  const container = containerRef?.current;
-  const containerWidth = container?.clientWidth ?? (typeof window !== "undefined" ? window.innerWidth : 1920);
-  const containerHeight = container?.clientHeight ?? (typeof window !== "undefined" ? window.innerHeight : 1080);
+  useEffect(() => {
+    const el = containerRef?.current;
+    if (!el) return;
+    const updateSize = () => {
+      setContainerSize({ width: el.clientWidth, height: el.clientHeight });
+    };
+    updateSize();
+    if (typeof ResizeObserver !== "undefined") {
+      const ro = new ResizeObserver(updateSize);
+      ro.observe(el);
+      return () => ro.disconnect();
+    }
+  }, [containerRef]);
+
+  const { width: containerWidth, height: containerHeight } = containerSize;
 
   return (
     <div

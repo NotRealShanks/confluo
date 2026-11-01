@@ -44,6 +44,7 @@ export function EditorGutterComments({
   // Jump to focused line if specified (e.g. from inbox notification)
   useEffect(() => {
     if (focusLine) {
+      // oxlint-disable-next-line react/set-state-in-effect
       setActiveLine(focusLine);
       if (editor) {
         editor.revealLineInCenter(focusLine);
@@ -63,7 +64,7 @@ export function EditorGutterComments({
 
   // Listen to Monaco editor scroll, layout, and mouse move events
   useEffect(() => {
-    if (!editor) return;
+    if (!editor || typeof editor.onMouseMove !== "function") return;
 
     const disposables = [
       editor.onMouseMove((e) => {
@@ -104,7 +105,9 @@ export function EditorGutterComments({
   // Compute layout offsets
   const layoutInfo = useMemo(() => {
     void scrollVersion;
-    if (!editor) return { contentLeft: 60, gutterWidth: 50, lineHeight: 19 };
+    if (!editor || typeof editor.getLayoutInfo !== "function") {
+      return { contentLeft: 60, gutterWidth: 50, lineHeight: 19 };
+    }
     return editor.getLayoutInfo();
   }, [editor, scrollVersion]);
 
@@ -116,14 +119,17 @@ export function EditorGutterComments({
   const getLineTop = useCallback(
     (line: number) => {
       void scrollVersion;
-      if (!editor) return 0;
+      if (!editor || typeof editor.getTopForLineNumber !== "function" || typeof editor.getScrollTop !== "function") {
+        return 0;
+      }
       return editor.getTopForLineNumber(line) - editor.getScrollTop() + verticalOffset;
     },
     [editor, scrollVersion, verticalOffset],
   );
 
   // Visible height and bounds check
-  const editorHeight = editor?.getLayoutInfo()?.height ?? 600;
+  const editorHeight =
+    typeof editor?.getLayoutInfo === "function" ? (editor.getLayoutInfo()?.height ?? 600) : 600;
 
   // Lines that currently have comment threads
   const commentedLines = useMemo(() => {

@@ -36,7 +36,7 @@ vi.mock("@monaco-editor/react", async () => {
   const fakeMonaco = { editor: { CursorChangeReason: { Explicit: 3 } } };
   return {
     Editor: ({ onMount }: { onMount: (editor: unknown, monaco: unknown) => void }) => {
-      useEffect(() => { onMount(fakeEditor, fakeMonaco); }, []);
+      useEffect(() => { onMount(fakeEditor, fakeMonaco); }, [onMount]);
       return <div />;
     },
   };

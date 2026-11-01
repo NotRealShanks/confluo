@@ -65,9 +65,10 @@ vi.mock("@monaco-editor/react", async () => {
       capturedProps.path = props.path;
       capturedProps.theme = (props as any).theme;
       capturedProps.options = props.options;
+      const { onMount } = props;
       useEffect(() => {
-        props.onMount?.(fakeEditor, fakeMonaco);
-      }, [props.onMount]);
+        onMount?.(fakeEditor, fakeMonaco);
+      }, [onMount]);
       return <div data-testid="monaco-mock" data-path={props.path} data-lang={props.language} />;
     },
   };

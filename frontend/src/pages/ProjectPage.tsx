@@ -590,7 +590,7 @@ export function CollaborativeWorkspace({
     const { scrollLeft, scrollWidth, clientWidth } = el;
     setCanScrollLeft(scrollLeft > 1);
     setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 1);
-  }, []);
+  }, [setCanScrollLeft, setCanScrollRight]);
 
   useEffect(() => {
     checkScroll();
@@ -645,30 +645,33 @@ export function CollaborativeWorkspace({
     }
   };
 
-  const selectFile = (id: string, preserveFollow = false) => {
-    if (!preserveFollow && followingUserId) {
-      stopFollowing();
-    }
-    if (id) {
-      dispatchTabs({ type: "select", fileId: id });
-      const targetNode = view.nodes.get(id);
-      if (targetNode?.type === "file" && getFileCapability(targetNode.name).isPreviewable) {
-        setActivePreviewPath(pathForNode(view, targetNode));
+  const others = useOthers();
+  const { followingUserId, stopFollowing, registerJumpHandler } = useFollow();
+
+  const selectFile = useCallback(
+    (id: string, preserveFollow = false) => {
+      if (!preserveFollow && followingUserId) {
+        stopFollowing();
       }
-    } else if (selectedFileId) {
-      dispatchTabs({ type: "remove", fileId: selectedFileId });
-    }
-  };
+      if (id) {
+        dispatchTabs({ type: "select", fileId: id });
+        const targetNode = view.nodes.get(id);
+        if (targetNode?.type === "file" && getFileCapability(targetNode.name).isPreviewable) {
+          setActivePreviewPath(pathForNode(view, targetNode));
+        }
+      } else if (selectedFileId) {
+        dispatchTabs({ type: "remove", fileId: selectedFileId });
+      }
+    },
+    [followingUserId, stopFollowing, view, selectedFileId, dispatchTabs, setActivePreviewPath],
+  );
 
   // Jump to file when selecting comment notification from Inbox
   useEffect(() => {
     if (focusComment?.fileId && focusComment.fileId !== selectedFileId) {
-      selectFile(focusComment.fileId, true);
+      queueMicrotask(() => selectFile(focusComment.fileId, true));
     }
-  }, [focusComment, selectedFileId]);
-
-  const others = useOthers();
-  const { followingUserId, stopFollowing, registerJumpHandler } = useFollow();
+  }, [focusComment, selectedFileId, selectFile]);
 
   // Jump to collaborator file and position
   useEffect(() => {
@@ -682,7 +685,7 @@ export function CollaborativeWorkspace({
         activeEditor.setScrollTop(Math.max(0, targetCursor.y - 120));
       }
     });
-  }, [activeEditor, others, registerJumpHandler]);
+  }, [activeEditor, others, registerJumpHandler, selectFile]);
 
   // Continuously track followed teammate as they switch files or scroll
   useEffect(() => {
@@ -694,13 +697,13 @@ export function CollaborativeWorkspace({
     }
     const targetFile = targetUser.presence?.activeFileId;
     if (targetFile && targetFile !== selectedFileId) {
-      selectFile(targetFile, true);
+      queueMicrotask(() => selectFile(targetFile, true));
     }
     const targetCursor = targetUser.presence?.cursor;
     if (targetCursor && activeEditor) {
       activeEditor.setScrollTop(Math.max(0, targetCursor.y - 120));
     }
-  }, [followingUserId, others, selectedFileId, activeEditor, stopFollowing]);
+  }, [followingUserId, others, selectedFileId, activeEditor, stopFollowing, selectFile]);
 
   const selectedNode = selectedFileId ? view.nodes.get(selectedFileId) : undefined;
   const isSelectedFilePreviewable =

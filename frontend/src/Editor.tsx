@@ -71,6 +71,7 @@ export default function Editor({
   // Reset mounted editor reference whenever the selected file changes so stale or
   // disposed instances are never accessed across file switches.
   useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect
     setMountedEditor(undefined);
   }, [fileId]);
 
@@ -91,10 +92,13 @@ export default function Editor({
   useEffect(() => {
     let active = true;
     if (fileNode?.kind !== "binary" || !fileNode.assetId || !projectId) {
+      // oxlint-disable-next-line react/set-state-in-effect
       setPdfUrl(null);
+      // oxlint-disable-next-line react/set-state-in-effect
       setPdfError(null);
       return;
     }
+    // oxlint-disable-next-line react/set-state-in-effect
     setPdfError(null);
     void downloadAsset(projectId, fileNode.assetId)
       .then((blob) => {

@@ -88,12 +88,14 @@ export default function WorkspaceExplorer({
   }, [ready, revision, selectedFileId, onSelectFile, view.nodes]);
 
   useEffect(() => {
-    if (selectedFileId && view.nodes.get(selectedFileId)?.type !== "file") onSelectFile("");
+    if (selectedFileId && view.nodes.get(selectedFileId)?.type !== "file") {
+      queueMicrotask(() => onSelectFile(""));
+    }
   }, [selectedFileId, onSelectFile, view.nodes]);
 
   useEffect(() => {
     if (selectedFolderId && view.nodes.get(selectedFolderId)?.type !== "folder") {
-      setSelectedFolderId(null);
+      queueMicrotask(() => setSelectedFolderId(null));
     }
   }, [selectedFolderId, view.nodes]);
 
