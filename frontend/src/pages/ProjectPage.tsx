@@ -46,6 +46,8 @@ import { pathForNode, workspaceTextEntries } from "../workspace/fileManagement";
 import { BrowserPreview } from "../preview/BrowserPreview";
 import { ProjectChatPanel } from "../chat/ProjectChatPanel";
 import { TerminalPanel } from "../terminal/TerminalPanel";
+import { LiveCursors } from "../collaborative/LiveCursors";
+import { useLiveCursorTracker } from "../collaborative/useLiveCursorTracker";
 import type { TreeView } from "../workspace/tree";
 import {
   SIDEBAR_DEFAULT_WIDTH,
@@ -437,6 +439,7 @@ export function CollaborativeWorkspace({
   const tabsContainerRef = useRef<HTMLDivElement>(null);
   const activeTabRef = useRef<HTMLDivElement>(null);
   const moreMenuRef = useRef<HTMLDivElement>(null);
+  const { handlePointerMove, handlePointerLeave } = useLiveCursorTracker();
   const view = snapshot(doc);
 
   useEffect(() => {
@@ -874,7 +877,13 @@ export function CollaborativeWorkspace({
             </div>
           </div>
         </div>
-        <div className="ide-editor-area" ref={editorAreaRef}>
+        <div
+          className="ide-editor-area"
+          ref={editorAreaRef}
+          onPointerMove={handlePointerMove}
+          onPointerLeave={handlePointerLeave}
+        >
+          <LiveCursors />
           {(!previewOpen || !previewMaximized) && (
             isSplit ? (
               <div className="flex-1 flex min-w-0 min-h-0 h-full w-full">

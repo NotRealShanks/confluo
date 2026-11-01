@@ -1,8 +1,8 @@
-// Presence is only for cursors; identity comes from the signed Liveblocks token
+// Presence tracks live mouse cursors and active status; identity comes from the signed Liveblocks token
 declare global {
   interface Liveblocks {
     Presence: {
-      cursor: number | null;
+      cursor: { x: number; y: number } | null;
     };
     UserMeta: {
       id: string;

@@ -31,6 +31,8 @@ vi.mock("@liveblocks/react/suspense", () => ({
   useRoom: () => ({ id: "room-test" }),
   useSelf: (selector: (user: { id: string; info: { name: string }; canWrite: boolean }) => unknown) =>
     selector({ id: "user-1", info: { name: "Alice" }, canWrite: true }),
+  useUpdateMyPresence: () => vi.fn(),
+  useOthers: () => [],
 }));
 
 vi.mock("@liveblocks/yjs", () => ({
