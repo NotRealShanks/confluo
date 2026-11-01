@@ -224,7 +224,7 @@ export function ProjectChatPanel({ projectId, onClose }: ProjectChatPanelProps) 
 
   return (
     <div
-      className="ide-chat-panel flex flex-col h-full w-full bg-[#1e1e1e] border-r border-[#2d2d2d] overflow-hidden select-text text-[#cccccc]"
+      className="ide-chat-panel flex flex-col h-full w-full bg-[#1e1e1e] border-0 overflow-hidden select-text text-[#cccccc]"
       data-testid="project-chat-panel"
     >
       {/* Header */}

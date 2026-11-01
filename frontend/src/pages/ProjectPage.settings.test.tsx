@@ -88,7 +88,7 @@ describe("ProjectPage ActivityBar & Settings integration", () => {
     const settingsBtn = screen.getByRole("button", { name: "Settings" });
     fireEvent.click(settingsBtn);
 
-    const darkRadio = screen.getByRole("radio", { name: /dark/i });
+    const darkRadio = screen.getByRole("radio", { name: /^dark$/i });
     fireEvent.click(darkRadio);
 
     expect(document.documentElement.getAttribute("data-theme")).toBe("dark");

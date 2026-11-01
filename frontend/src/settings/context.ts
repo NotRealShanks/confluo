@@ -9,7 +9,7 @@ export interface SettingsContextValue {
   settings: IdeSettings;
   resolvedTheme: ResolvedTheme;
   resolvedReducedMotion: boolean;
-  monacoTheme: "vs-dark" | "vs";
+  monacoTheme: string;
   updateSetting: <K extends keyof IdeSettings>(key: K, value: IdeSettings[K]) => void;
   updateSettings: (partial: Partial<IdeSettings>) => void;
   resetSettings: () => void;

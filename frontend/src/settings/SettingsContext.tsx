@@ -112,17 +112,25 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       ? systemReducedMotion
       : settings.reducedMotion === "reduce";
 
-  const monacoTheme: "vs-dark" | "vs" = resolvedTheme === "dark" ? "vs-dark" : "vs";
+  const monacoTheme: string = useMemo(() => {
+    if (resolvedTheme === "light") {
+      return settings.editorTheme === "github-light" || settings.editorTheme === "vs-light"
+        ? settings.editorTheme
+        : "vs";
+    }
+    return settings.editorTheme || "vs-dark";
+  }, [resolvedTheme, settings.editorTheme]);
 
   // Apply attributes to <html> DOM node
   useEffect(() => {
     if (typeof document === "undefined") return;
     const root = document.documentElement;
     root.setAttribute("data-theme", resolvedTheme);
+    root.setAttribute("data-editor-theme", settings.editorTheme);
     root.classList.toggle("theme-dark", resolvedTheme === "dark");
     root.classList.toggle("theme-light", resolvedTheme === "light");
     root.setAttribute("data-reduced-motion", resolvedReducedMotion ? "true" : "false");
-  }, [resolvedTheme, resolvedReducedMotion]);
+  }, [resolvedTheme, resolvedReducedMotion, settings.editorTheme]);
 
   // Persist settings to localStorage
   const persistSettings = useCallback((next: IdeSettings) => {

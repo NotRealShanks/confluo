@@ -83,7 +83,7 @@ describe("SettingsPanel component", () => {
 
     fireEvent.click(screen.getByTestId("open-settings-btn"));
 
-    const darkRadio = screen.getByRole("radio", { name: /dark/i });
+    const darkRadio = screen.getByRole("radio", { name: /^dark$/i });
     fireEvent.click(darkRadio);
 
     expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
@@ -91,12 +91,31 @@ describe("SettingsPanel component", () => {
     const saved = JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY) || "{}");
     expect(saved.theme).toBe("dark");
 
-    const lightRadio = screen.getByRole("radio", { name: /light/i });
+    const lightRadio = screen.getByRole("radio", { name: /^light$/i });
     fireEvent.click(lightRadio);
 
     expect(document.documentElement.getAttribute("data-theme")).toBe("light");
     const savedLight = JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY) || "{}");
     expect(savedLight.theme).toBe("light");
+  });
+
+  it("switches editor themes and immediately applies data-editor-theme attribute", () => {
+    render(
+      <SettingsProvider>
+        <TestHarness />
+      </SettingsProvider>,
+    );
+
+    fireEvent.click(screen.getByTestId("open-settings-btn"));
+
+    const draculaBtn = screen.getByRole("radio", { name: /dracula/i });
+    fireEvent.click(draculaBtn);
+
+    expect(document.documentElement.getAttribute("data-editor-theme")).toBe("dracula");
+    expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
+
+    const saved = JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY) || "{}");
+    expect(saved.editorTheme).toBe("dracula");
   });
 
   it("allows navigating categories and displays editor settings", () => {
@@ -241,7 +260,7 @@ describe("SettingsPanel component", () => {
     fireEvent.click(screen.getByTestId("open-settings-btn"));
 
     // Modify a setting
-    const darkRadio = screen.getByRole("radio", { name: /dark/i });
+    const darkRadio = screen.getByRole("radio", { name: /^dark$/i });
     fireEvent.click(darkRadio);
     expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
 

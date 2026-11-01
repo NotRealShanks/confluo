@@ -1,3 +1,6 @@
+import type { EditorThemeId } from "./monacoThemes";
+export type { EditorThemeId };
+
 export type ThemePreference = "dark" | "light" | "system";
 export type ResolvedTheme = "dark" | "light";
 
@@ -11,6 +14,7 @@ export type ReducedMotionPreference = "system" | "reduce" | "no-preference";
 export interface IdeSettings {
   // Appearance
   theme: ThemePreference;
+  editorTheme: EditorThemeId;
 
   // Editor
   fontSize: number; // 12-24
@@ -53,6 +57,7 @@ export const FONT_FAMILY_PRESETS = [
 
 export const DEFAULT_SETTINGS: IdeSettings = {
   theme: "system",
+  editorTheme: "vs-dark",
   fontSize: 14,
   fontFamily: FONT_FAMILY_PRESETS[0].value,
   tabSize: 2,
@@ -146,8 +151,19 @@ export function validateSettings(raw: unknown): IdeSettings {
       ? obj.reducedMotion
       : DEFAULT_SETTINGS.reducedMotion;
 
+  const editorTheme: EditorThemeId =
+    obj.editorTheme === "vs-dark" ||
+    obj.editorTheme === "github-dark" ||
+    obj.editorTheme === "one-dark" ||
+    obj.editorTheme === "dracula" ||
+    obj.editorTheme === "github-light" ||
+    obj.editorTheme === "vs-light"
+      ? obj.editorTheme
+      : DEFAULT_SETTINGS.editorTheme;
+
   return {
     theme,
+    editorTheme,
     fontSize,
     fontFamily,
     tabSize,

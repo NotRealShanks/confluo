@@ -770,11 +770,6 @@ export function CollaborativeWorkspace({
         onPointerDown={startSidebarResize}
         onKeyDown={resizeSidebarWithKeyboard}
       />}
-      {chatOpen && !isGuest && (
-        <aside className="ide-chat-sidebar" aria-label="Project chat and activity">
-          <ProjectChatPanel projectId={projectId} onClose={() => setChatOpen(false)} />
-        </aside>
-      )}
       <main className="ide-main">
         <FollowingBanner />
         <div className="ide-editor-header">
@@ -1105,6 +1100,11 @@ export function CollaborativeWorkspace({
           onClearOutput={() => setOutput("")}
         />
       </main>
+      {chatOpen && !isGuest && (
+        <aside className="ide-chat-sidebar is-right" aria-label="Project chat and activity">
+          <ProjectChatPanel projectId={projectId} onClose={() => setChatOpen(false)} />
+        </aside>
+      )}
       <SettingsPanel />
     </div>
   );

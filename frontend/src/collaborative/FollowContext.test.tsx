@@ -86,3 +86,4 @@ describe("FollowContext and FollowingBanner", () => {
     expect(screen.queryByTestId("following-banner")).toBeNull();
   });
 });
+

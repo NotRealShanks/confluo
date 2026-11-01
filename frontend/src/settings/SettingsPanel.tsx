@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { useSettings } from "./useSettings";
+import { THEME_PRESETS } from "./monacoThemes";
 import {
   FONT_FAMILY_PRESETS,
   type CursorBlinkingPreference,
@@ -41,6 +42,13 @@ const SETTING_ITEMS: SettingItemDefinition[] = [
     label: "Theme",
     description: "Select the visual color theme for Confluo and Monaco Editor.",
     keywords: ["theme", "color", "dark", "light", "system", "appearance", "mode"],
+  },
+  {
+    id: "editorTheme",
+    category: "appearance",
+    label: "Editor Theme & Palette",
+    description: "Choose a syntax and editor color theme (VS Code Dark+, GitHub Dark, One Dark Pro, Dracula, GitHub Light, VS Code Light+).",
+    keywords: ["theme", "editor theme", "monaco", "dracula", "github", "one dark", "vs code", "syntax", "colors", "palette"],
   },
   {
     id: "fontSize",
@@ -146,6 +154,7 @@ export function SettingsPanel() {
 
   const searchInputId = useId();
   const themeFieldId = useId();
+  const editorThemeFieldId = useId();
   const fontSizeFieldId = useId();
   const fontFamilyFieldId = useId();
   const tabSizeFieldId = useId();
@@ -365,6 +374,53 @@ export function SettingsPanel() {
                       <span className="ide-setting-hint">
                         Currently resolved: <strong>{resolvedTheme} mode</strong>
                       </span>
+                    </div>
+                  </div>
+                )}
+
+                {matchesFilter("editorTheme") && (
+                  <div className="ide-setting-row ide-setting-row-vertical">
+                    <div className="ide-setting-info">
+                      <label id={editorThemeFieldId} className="ide-setting-label">Editor & Syntax Theme</label>
+                      <p className="ide-setting-description">
+                        Select a syntax color palette and coordinated styling for the editor and workspace.
+                      </p>
+                    </div>
+                    <div className="ide-setting-control">
+                      <div className="ide-editor-theme-grid" role="radiogroup" aria-labelledby={editorThemeFieldId}>
+                        {THEME_PRESETS.map((preset) => {
+                          const isActive = settings.editorTheme === preset.id;
+                          return (
+                            <button
+                              key={preset.id}
+                              type="button"
+                              role="radio"
+                              aria-checked={isActive}
+                              className={`ide-editor-theme-card ${isActive ? "is-active" : ""}`}
+                              onClick={() => {
+                                updateSetting("editorTheme", preset.id);
+                                if (preset.type === "dark" && resolvedTheme === "light") {
+                                  updateSetting("theme", "dark");
+                                } else if (preset.type === "light" && resolvedTheme === "dark") {
+                                  updateSetting("theme", "light");
+                                }
+                              }}
+                            >
+                              <div
+                                className="ide-theme-swatch"
+                                style={{ backgroundColor: preset.bg }}
+                              >
+                                <span className="ide-theme-swatch-dot" style={{ backgroundColor: preset.accent }} />
+                              </div>
+                              <div className="ide-theme-card-text">
+                                <span className="ide-theme-card-title">{preset.name}</span>
+                                <span className="ide-theme-card-desc">{preset.description}</span>
+                              </div>
+                              {isActive && <Check size={16} className="ide-check-icon" />}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 )}

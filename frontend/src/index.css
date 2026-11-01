@@ -186,8 +186,8 @@ button {
 }
 
 .ide-chat-sidebar {
-  flex: 0 0 320px;
-  width: 320px;
+  flex: 0 0 340px;
+  width: 340px;
   min-width: 280px;
   max-width: 480px;
   height: 100%;
@@ -195,7 +195,8 @@ button {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border-right: 1px solid #d9dee7;
+  border-left: 1px solid #d9dee7;
+  border-right: none;
   background: #ffffff;
 }
 
@@ -1518,6 +1519,95 @@ body.is-resizing-panel * {
   color: #2563eb;
 }
 
+.ide-setting-row.ide-setting-row-vertical {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+}
+
+.ide-setting-row.ide-setting-row-vertical .ide-setting-control {
+  align-items: stretch;
+  width: 100%;
+}
+
+.ide-editor-theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 10px;
+  width: 100%;
+}
+
+.ide-editor-theme-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1.5px solid #d1d5db;
+  border-radius: 8px;
+  background: #f9fafb;
+  color: #374151;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ide-editor-theme-card:hover {
+  border-color: #9ca3af;
+  background: #f3f4f6;
+}
+
+.ide-editor-theme-card.is-active {
+  border-color: #2563eb;
+  background: #eff6ff;
+  box-shadow: 0 0 0 1px #2563eb;
+}
+
+.ide-theme-swatch {
+  position: relative;
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 3px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.ide-theme-swatch-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(0, 0, 0, 0.35);
+}
+
+.ide-theme-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.ide-theme-card-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.ide-theme-card-desc {
+  font-size: 10.5px;
+  line-height: 1.3;
+  color: #6b7280;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 .ide-range-control {
   flex-direction: row;
   align-items: center;
@@ -1775,7 +1865,8 @@ body.is-resizing-panel * {
 }
 
 [data-theme="dark"] .ide-chat-sidebar {
-  border-right-color: #334155;
+  border-left-color: #2d2d30;
+  border-right: none;
   background: #1e1e1e;
   color: #cbd5e1;
 }
@@ -2088,6 +2179,31 @@ body.is-resizing-panel * {
   color: #93c5fd;
 }
 
+[data-theme="dark"] .ide-editor-theme-card {
+  border-color: #334155;
+  background: #0f172a;
+  color: #cbd5e1;
+}
+
+[data-theme="dark"] .ide-editor-theme-card:hover {
+  border-color: #475569;
+  background: #1e293b;
+}
+
+[data-theme="dark"] .ide-editor-theme-card.is-active {
+  border-color: #3b82f6;
+  background: #1e3a8a33;
+  box-shadow: 0 0 0 1px #3b82f6;
+}
+
+[data-theme="dark"] .ide-theme-card-title {
+  color: #f1f5f9;
+}
+
+[data-theme="dark"] .ide-theme-card-desc {
+  color: #94a3b8;
+}
+
 [data-theme="dark"] .ide-settings-number-input,
 [data-theme="dark"] .ide-settings-select {
   border-color: #475569;
@@ -2250,3 +2366,200 @@ body.is-resizing-panel * {
 .ide-folder-badge svg {
   stroke-width: 0.5px;
 }
+
+/* ==========================================================================
+   Editor Theme Harmonization (VS Code Dark+, GitHub Dark, One Dark, Dracula, Light)
+   ========================================================================== */
+
+/* GitHub Dark Theme */
+[data-editor-theme="github-dark"] .ide-main,
+[data-editor-theme="github-dark"] .ide-editor,
+[data-editor-theme="github-dark"] .ide-monaco,
+[data-editor-theme="github-dark"] .ide-empty-editor {
+  background: #0d1117;
+}
+
+[data-editor-theme="github-dark"] .ide-editor-header {
+  background: #161b22;
+  border-bottom-color: #30363d;
+}
+
+[data-editor-theme="github-dark"] .ide-tab {
+  border-right-color: #30363d;
+  color: #8b949e;
+}
+
+[data-editor-theme="github-dark"] .ide-tab.is-active {
+  background: #0d1117;
+  color: #c9d1d9;
+  border-top-color: #58a6ff;
+}
+
+[data-editor-theme="github-dark"] .ide-editor-actions {
+  border-left-color: #30363d;
+}
+
+[data-editor-theme="github-dark"] .ide-chat-sidebar {
+  border-left-color: #30363d;
+}
+
+/* One Dark Pro Theme */
+[data-editor-theme="one-dark"] .ide-main,
+[data-editor-theme="one-dark"] .ide-editor,
+[data-editor-theme="one-dark"] .ide-monaco,
+[data-editor-theme="one-dark"] .ide-empty-editor {
+  background: #282c34;
+}
+
+[data-editor-theme="one-dark"] .ide-editor-header {
+  background: #21252b;
+  border-bottom-color: #181a1f;
+}
+
+[data-editor-theme="one-dark"] .ide-tab {
+  border-right-color: #181a1f;
+  color: #abb2bf;
+}
+
+[data-editor-theme="one-dark"] .ide-tab.is-active {
+  background: #282c34;
+  color: #ffffff;
+  border-top-color: #61afef;
+}
+
+[data-editor-theme="one-dark"] .ide-editor-actions {
+  border-left-color: #181a1f;
+}
+
+[data-editor-theme="one-dark"] .ide-chat-sidebar {
+  border-left-color: #181a1f;
+}
+
+/* Dracula Theme */
+[data-editor-theme="dracula"] .ide-main,
+[data-editor-theme="dracula"] .ide-editor,
+[data-editor-theme="dracula"] .ide-monaco,
+[data-editor-theme="dracula"] .ide-empty-editor {
+  background: #282a36;
+}
+
+[data-editor-theme="dracula"] .ide-editor-header {
+  background: #191a21;
+  border-bottom-color: #44475a;
+}
+
+[data-editor-theme="dracula"] .ide-tab {
+  border-right-color: #44475a;
+  color: #6272a4;
+}
+
+[data-editor-theme="dracula"] .ide-tab.is-active {
+  background: #282a36;
+  color: #f8f8f2;
+  border-top-color: #bd93f9;
+}
+
+[data-editor-theme="dracula"] .ide-editor-actions {
+  border-left-color: #44475a;
+}
+
+[data-editor-theme="dracula"] .ide-chat-sidebar {
+  border-left-color: #44475a;
+}
+
+/* VS Code Dark+ Theme */
+[data-editor-theme="vs-dark"] .ide-main,
+[data-editor-theme="vs-dark"] .ide-editor,
+[data-editor-theme="vs-dark"] .ide-monaco,
+[data-editor-theme="vs-dark"] .ide-empty-editor {
+  background: #1e1e1e;
+}
+
+[data-editor-theme="vs-dark"] .ide-editor-header {
+  background: #252526;
+  border-bottom-color: #2d2d30;
+}
+
+[data-editor-theme="vs-dark"] .ide-tab {
+  border-right-color: #2d2d30;
+  color: #969696;
+}
+
+[data-editor-theme="vs-dark"] .ide-tab.is-active {
+  background: #1e1e1e;
+  color: #ffffff;
+  border-top-color: #007acc;
+}
+
+[data-editor-theme="vs-dark"] .ide-editor-actions {
+  border-left-color: #2d2d30;
+}
+
+[data-editor-theme="vs-dark"] .ide-chat-sidebar {
+  border-left-color: #2d2d30;
+}
+
+/* GitHub Light Theme */
+[data-editor-theme="github-light"] .ide-main,
+[data-editor-theme="github-light"] .ide-editor,
+[data-editor-theme="github-light"] .ide-monaco,
+[data-editor-theme="github-light"] .ide-empty-editor {
+  background: #ffffff;
+}
+
+[data-editor-theme="github-light"] .ide-editor-header {
+  background: #f6f8fa;
+  border-bottom-color: #d0d7de;
+}
+
+[data-editor-theme="github-light"] .ide-tab {
+  border-right-color: #d0d7de;
+  color: #57606a;
+}
+
+[data-editor-theme="github-light"] .ide-tab.is-active {
+  background: #ffffff;
+  color: #24292f;
+  border-top-color: #0969da;
+}
+
+[data-editor-theme="github-light"] .ide-editor-actions {
+  border-left-color: #d0d7de;
+}
+
+[data-editor-theme="github-light"] .ide-chat-sidebar {
+  border-left-color: #d0d7de;
+}
+
+/* VS Code Light+ Theme */
+[data-editor-theme="vs-light"] .ide-main,
+[data-editor-theme="vs-light"] .ide-editor,
+[data-editor-theme="vs-light"] .ide-monaco,
+[data-editor-theme="vs-light"] .ide-empty-editor {
+  background: #ffffff;
+}
+
+[data-editor-theme="vs-light"] .ide-editor-header {
+  background: #f3f3f3;
+  border-bottom-color: #e5e5e5;
+}
+
+[data-editor-theme="vs-light"] .ide-tab {
+  border-right-color: #e5e5e5;
+  color: #616161;
+}
+
+[data-editor-theme="vs-light"] .ide-tab.is-active {
+  background: #ffffff;
+  color: #333333;
+  border-top-color: #007acc;
+}
+
+[data-editor-theme="vs-light"] .ide-editor-actions {
+  border-left-color: #e5e5e5;
+}
+
+[data-editor-theme="vs-light"] .ide-chat-sidebar {
+  border-left-color: #e5e5e5;
+}
+

@@ -12,7 +12,7 @@ import { getYjsProviderForRoom } from "@liveblocks/yjs";
 import { getFileText, snapshot } from "./workspace/ops";
 import { languageForFilename } from "./workspace/language";
 import { downloadAsset } from "./api/assets";
-import { useSettings } from "./settings";
+import { useSettings, registerMonacoThemes } from "./settings";
 import { Code2 } from "lucide-react";
 
 type UserState = { name: string; color: string; showName?: boolean };
@@ -279,6 +279,7 @@ export default function Editor({
             key={fileId}
             height="100%"
             theme={monacoTheme}
+            beforeMount={registerMonacoThemes}
             language={language}
             defaultLanguage={language}
             defaultValue=""

@@ -29,6 +29,16 @@ describe("Settings validation & defaults", () => {
     expect(validateSettings({ theme: "neon-blue" }).theme).toBe(DEFAULT_SETTINGS.theme);
   });
 
+  it("validates editor theme options and falls back to default on invalid value", () => {
+    expect(validateSettings({ editorTheme: "github-dark" }).editorTheme).toBe("github-dark");
+    expect(validateSettings({ editorTheme: "one-dark" }).editorTheme).toBe("one-dark");
+    expect(validateSettings({ editorTheme: "dracula" }).editorTheme).toBe("dracula");
+    expect(validateSettings({ editorTheme: "github-light" }).editorTheme).toBe("github-light");
+    expect(validateSettings({ editorTheme: "vs-light" }).editorTheme).toBe("vs-light");
+    expect(validateSettings({ editorTheme: "vs-dark" }).editorTheme).toBe("vs-dark");
+    expect(validateSettings({ editorTheme: "nonexistent-theme" as any }).editorTheme).toBe(DEFAULT_SETTINGS.editorTheme);
+  });
+
   it("validates tab size to 2, 4, or 8 spaces", () => {
     expect(validateSettings({ tabSize: 2 }).tabSize).toBe(2);
     expect(validateSettings({ tabSize: 4 }).tabSize).toBe(4);
