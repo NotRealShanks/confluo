@@ -9,7 +9,17 @@ const shared = vi.hoisted(() => ({ doc: null as unknown, awareness: null as unkn
 
 vi.mock("@liveblocks/react/suspense", () => ({
   useRoom: () => ({}),
-  useSelf: (select: (me: unknown) => unknown) => select({ id: "me-1", info: { name: "Me" }, canWrite: true }),
+  useSelf: (select?: (me: unknown) => unknown) => {
+    const me = { id: "me-1", info: { name: "Me" }, canWrite: true };
+    return select ? select(me) : me;
+  },
+  useThreads: () => ({ threads: [] }),
+  useCreateThread: () => vi.fn(),
+  useCreateComment: () => vi.fn(),
+  useMarkThreadAsResolved: () => vi.fn(),
+  useMarkThreadAsUnresolved: () => vi.fn(),
+  useDeleteThread: () => vi.fn(),
+  useDeleteComment: () => vi.fn(),
 }));
 vi.mock("@liveblocks/yjs", () => ({
   getYjsProviderForRoom: () => ({ getYDoc: () => shared.doc, awareness: shared.awareness }),

@@ -53,6 +53,7 @@ import { useLiveCursorTracker } from "../collaborative/useLiveCursorTracker";
 import { ConnectionStatus, ConnectionOfflineBanner } from "../collaborative/ConnectionStatus";
 import { FollowProvider, useFollow } from "../collaborative/FollowContext";
 import { FollowingBanner } from "../collaborative/FollowingBanner";
+import { InboxNotificationMenu } from "../comments";
 import type { TreeView } from "../workspace/tree";
 import {
   SIDEBAR_DEFAULT_WIDTH,
@@ -404,12 +405,16 @@ export function CollaborativeWorkspace({
   canInitialize = true,
   canRun = true,
   isGuest = false,
+  focusComment,
+  onClearFocusComment,
 }: {
   projectId: string;
   projectName?: string;
   canInitialize?: boolean;
   canRun?: boolean;
   isGuest?: boolean;
+  focusComment?: { fileId: string; lineNumber: number } | null;
+  onClearFocusComment?: () => void;
 }) {
   const room = useRoom();
   const provider = getYjsProviderForRoom(room);
@@ -654,6 +659,13 @@ export function CollaborativeWorkspace({
       dispatchTabs({ type: "remove", fileId: selectedFileId });
     }
   };
+
+  // Jump to file when selecting comment notification from Inbox
+  useEffect(() => {
+    if (focusComment?.fileId && focusComment.fileId !== selectedFileId) {
+      selectFile(focusComment.fileId, true);
+    }
+  }, [focusComment, selectedFileId]);
 
   const others = useOthers();
   const { followingUserId, stopFollowing, registerJumpHandler } = useFollow();
@@ -963,6 +975,8 @@ export function CollaborativeWorkspace({
                       emptyWorkspace={view.nodes.size === 0}
                       onCreateFile={canInitialize ? () => setCreateFileRequest((request) => request + 1) : undefined}
                       onEditorMount={setActiveEditor}
+                      focusCommentLine={focusComment?.fileId === selectedFileId ? focusComment.lineNumber : null}
+                      onClearFocusCommentLine={onClearFocusComment}
                     />
                   </EditorErrorBoundary>
                 </div>
@@ -1045,6 +1059,8 @@ export function CollaborativeWorkspace({
                     emptyWorkspace={view.nodes.size === 0}
                     onCreateFile={canInitialize ? () => setCreateFileRequest((request) => request + 1) : undefined}
                     onEditorMount={setActiveEditor}
+                    focusCommentLine={focusComment?.fileId === selectedFileId ? focusComment.lineNumber : null}
+                    onClearFocusCommentLine={onClearFocusComment}
                   />
                 </EditorErrorBoundary>
               </div>
@@ -1110,7 +1126,13 @@ export function CollaborativeWorkspace({
   );
 }
 
-function ProjectHeader({ project }: { project: Project }) {
+function ProjectHeader({
+  project,
+  onNavigateToComment,
+}: {
+  project: Project;
+  onNavigateToComment?: (fileId: string, lineNumber: number) => void;
+}) {
   const [shareOpen, setShareOpen] = useState(false);
 
   return (
@@ -1124,6 +1146,7 @@ function ProjectHeader({ project }: { project: Project }) {
         <div className="ide-header-spacer" />
         <ConnectionStatus />
         <div className="ide-presence"><Presence /></div>
+        <InboxNotificationMenu onNavigateToComment={onNavigateToComment} />
         <RoleBadge role={project.role} />
         {project.role === "OWNER" && <button type="button" className="ide-share-button" onClick={() => setShareOpen(true)}><Share2 size={15} /> Share</button>}
         <AccountMenu compact />
@@ -1136,6 +1159,8 @@ function ProjectHeader({ project }: { project: Project }) {
 function ProjectView({ id }: { id: string }) {
   const { state, reload } = useProject(id);
   const [roomAttempt, setRoomAttempt] = useState(0);
+  const [focusComment, setFocusComment] = useState<{ fileId: string; lineNumber: number } | null>(null);
+
   if (state.status === "loading") return <div className="ide-loading">Loading project…</div>;
   if (state.status === "error") {
     const notFound = state.error instanceof ApiError && state.error.status === 404;
@@ -1147,13 +1172,18 @@ function ProjectView({ id }: { id: string }) {
       <RoomErrorBoundary onRetry={() => setRoomAttempt((attempt) => attempt + 1)}>
         <Room key={roomAttempt} projectId={project.id}>
           <FollowProvider>
-            <ProjectHeader project={project} />
+            <ProjectHeader
+              project={project}
+              onNavigateToComment={(fileId, lineNumber) => setFocusComment({ fileId, lineNumber })}
+            />
             <ConnectionOfflineBanner />
             <CollaborativeWorkspace
               projectId={project.id}
               projectName={project.title}
               canInitialize={project.role !== "VIEWER"}
               canRun={project.role !== "VIEWER"}
+              focusComment={focusComment}
+              onClearFocusComment={() => setFocusComment(null)}
             />
           </FollowProvider>
         </Room>

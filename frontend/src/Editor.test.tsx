@@ -17,8 +17,17 @@ let canWriteSelf = true;
 
 vi.mock("@liveblocks/react/suspense", () => ({
   useRoom: () => ({}),
-  useSelf: (selector: (me: { id: string; info: { name: string }; canWrite: boolean }) => unknown) =>
-    selector({ id: "user-1", info: { name: "Alice" }, canWrite: canWriteSelf }),
+  useSelf: (selector?: (me: { id: string; info: { name: string }; canWrite: boolean }) => unknown) => {
+    const me = { id: "user-1", info: { name: "Alice" }, canWrite: canWriteSelf };
+    return selector ? selector(me) : me;
+  },
+  useThreads: () => ({ threads: [] }),
+  useCreateThread: () => vi.fn(),
+  useCreateComment: () => vi.fn(),
+  useMarkThreadAsResolved: () => vi.fn(),
+  useMarkThreadAsUnresolved: () => vi.fn(),
+  useDeleteThread: () => vi.fn(),
+  useDeleteComment: () => vi.fn(),
 }));
 
 vi.mock("@liveblocks/yjs", () => ({

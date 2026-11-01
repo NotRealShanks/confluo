@@ -14,6 +14,7 @@ import { languageForFilename } from "./workspace/language";
 import { downloadAsset } from "./api/assets";
 import { useSettings, registerMonacoThemes } from "./settings";
 import { Code2 } from "lucide-react";
+import { useCodeComments, EditorGutterComments } from "./comments";
 
 type UserState = { name: string; color: string; showName?: boolean };
 type MountedEditor = { fileId: string | null | undefined; editor: editor.IStandaloneCodeEditor; monaco: Monaco };
@@ -26,6 +27,8 @@ type EditorProps = {
   emptyWorkspace?: boolean;
   onCreateFile?: () => void;
   onEditorMount?: (editor: editor.IStandaloneCodeEditor | null) => void;
+  focusCommentLine?: number | null;
+  onClearFocusCommentLine?: () => void;
 };
 
 export default function Editor({
@@ -36,12 +39,24 @@ export default function Editor({
   emptyWorkspace = false,
   onCreateFile,
   onEditorMount,
+  focusCommentLine,
+  onClearFocusCommentLine,
 }: EditorProps) {
   const room = useRoom();
   // Identity and permission come from the signed token, not from the client
   const name = useSelf((me) => me.info.name);
-  const color = colorFor(useSelf((me) => me.id));
-  const readOnly = !useSelf((me) => me.canWrite);
+  const selfId = useSelf((me) => me.id);
+  const canWrite = useSelf((me) => me.canWrite);
+  const color = colorFor(selfId);
+  const readOnly = !canWrite;
+  const {
+    threadsByLine,
+    addThreadOnLine,
+    replyToThread,
+    resolveThread,
+    unresolveThread,
+    removeThread,
+  } = useCodeComments({ fileId });
   const [mountedEditor, setMountedEditor] = useState<MountedEditor>();
   const editorInstance = mountedEditor?.editor;
   const monacoInstance = mountedEditor?.monaco;
@@ -310,6 +325,22 @@ export default function Editor({
             }}
             onMount={handleEditorMount}
           />
+          {editorInstance && (
+            <EditorGutterComments
+              editor={editorInstance}
+              fileId={fileId}
+              readOnly={readOnly}
+              threadsByLine={threadsByLine}
+              onAddComment={addThreadOnLine}
+              onReply={replyToThread}
+              onResolve={resolveThread}
+              onUnresolve={unresolveThread}
+              onDeleteThread={removeThread}
+              currentUserId={selfId}
+              focusLine={focusCommentLine}
+              onClearFocusLine={onClearFocusCommentLine}
+            />
+          )}
         </div>
       ) : (
         <div className="ide-empty-editor">
