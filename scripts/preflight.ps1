@@ -41,20 +41,15 @@ try {
 # 2. Check Backend Service
 Write-Host "Checking Backend Service ($BackendUrl)..." -NoNewline
 try {
-    # Any HTTP response (including 401 Unauthorized or 403 Forbidden) indicates the Spring Boot server is alive and answering
-    $backendRequest = [System.Net.HttpWebRequest]::Create("$BackendUrl/api/projects")
-    $backendRequest.Timeout = 5000
-    $backendRequest.Method = "GET"
+    $statusCode = 0
     try {
-        $backendResponse = $backendRequest.GetResponse()
+        $backendResponse = Invoke-WebRequest -Uri "$BackendUrl/api/projects" -UseBasicParsing -TimeoutSec 5 -ErrorAction Stop
         $statusCode = [int]$backendResponse.StatusCode
-        $backendResponse.Close()
-    } catch [System.Net.WebException] {
-        if ($_.Response) {
-            $statusCode = [int]$_.Response.StatusCode
-            $_.Response.Close()
+    } catch {
+        if ($_.Exception.Response) {
+            $statusCode = [int]$_.Exception.Response.StatusCode
         } else {
-            throw $_
+            throw $_.Exception
         }
     }
 
@@ -110,3 +105,4 @@ if ($allPass) {
     Write-Host "Please start the missing processes in order: Runner -> Backend -> Frontend." -ForegroundColor Yellow
     exit 1
 }
+
