@@ -42,7 +42,7 @@ import WorkspaceExplorer from "../workspace/WorkspaceExplorer";
 import { useOthers, useRoom, useUpdateMyPresence } from "@liveblocks/react/suspense";
 import { FilePresenceBadge } from "../collaborative/FilePresenceBadge";
 import { initialTabState, tabReducer } from "../workspace/tabState";
-import { executeProject, type ExecutionResult } from "../api/execution";
+import { executeProject, formatExecutionError, type ExecutionResult } from "../api/execution";
 import { getFileCapability } from "../workspace/fileCapabilities";
 import { pathForNode, workspaceTextEntries } from "../workspace/fileManagement";
 import { BrowserPreview } from "../preview/BrowserPreview";
@@ -746,7 +746,7 @@ export function CollaborativeWorkspace({
       const status = result.timedOut ? "Timed out" : `Exited with code ${result.exitCode ?? "unknown"}`;
       setOutput([result.stdout, result.stderr, status].filter(Boolean).join("\n"));
     } catch (error) {
-      setOutput(error instanceof Error ? error.message : "Execution failed.");
+      setOutput(formatExecutionError(error));
     } finally {
       setRunning(false);
     }

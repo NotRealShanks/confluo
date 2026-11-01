@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, type KeyboardEvent } from "react";
 import { Plus, Trash2, Eraser, Terminal as TerminalIcon } from "lucide-react";
 import * as Y from "yjs";
-import { executeProject } from "../api/execution";
+import { executeProject, formatExecutionError } from "../api/execution";
 import { workspaceTextEntries, pathForNode } from "../workspace/fileManagement";
 import { getFileCapability } from "../workspace/fileCapabilities";
 import { createNode, deleteNode } from "../workspace/ops";
@@ -511,7 +511,7 @@ export function TerminalPanel({ projectId, projectName = "project", doc, view }:
         return (result.exitCode ?? 0) === 0;
       } catch (err: unknown) {
         appendLinesToActive([
-          { type: "error", text: err instanceof Error ? err.message : "Execution failed." },
+          { type: "error", text: formatExecutionError(err) },
         ]);
         return false;
       } finally {
@@ -573,7 +573,7 @@ export function TerminalPanel({ projectId, projectName = "project", doc, view }:
         }
       } catch (err: unknown) {
         appendLinesToActive([
-          { type: "error", text: err instanceof Error ? err.message : "Compilation failed." },
+          { type: "error", text: formatExecutionError(err) },
         ]);
         return false;
       } finally {
@@ -628,7 +628,7 @@ export function TerminalPanel({ projectId, projectName = "project", doc, view }:
         return (result.exitCode ?? 0) === 0;
       } catch (err: unknown) {
         appendLinesToActive([
-          { type: "error", text: err instanceof Error ? err.message : "Execution failed." },
+          { type: "error", text: formatExecutionError(err) },
         ]);
         return false;
       } finally {
@@ -705,7 +705,7 @@ export function TerminalPanel({ projectId, projectName = "project", doc, view }:
         return (result.exitCode ?? 0) === 0;
       } catch (err: unknown) {
         appendLinesToActive([
-          { type: "error", text: err instanceof Error ? err.message : "Execution failed." },
+          { type: "error", text: formatExecutionError(err) },
         ]);
         return false;
       } finally {
@@ -743,9 +743,9 @@ export function TerminalPanel({ projectId, projectName = "project", doc, view }:
         appendLinesToActive(outputs);
       }
       return (result.exitCode ?? 0) === 0;
-    } catch {
+    } catch (err: unknown) {
       appendLinesToActive([
-        { type: "error", text: `confluo: command not found: ${cmd}. Type 'help' for available commands.` },
+        { type: "error", text: formatExecutionError(err) },
       ]);
       return false;
     } finally {
