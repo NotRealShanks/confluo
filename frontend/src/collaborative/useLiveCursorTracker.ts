@@ -8,6 +8,8 @@ export interface UseLiveCursorTrackerOptions {
   editorInstance?: {
     getScrollTop: () => number;
     getScrollLeft: () => number;
+    onKeyDown?: (listener: () => void) => { dispose: () => void };
+    onDidPaste?: (listener: () => void) => { dispose: () => void };
   } | null;
 }
 
@@ -19,10 +21,56 @@ export function useLiveCursorTracker(options?: UseLiveCursorTrackerOptions) {
   const fileId = options?.fileId ?? null;
   const editorInstance = options?.editorInstance;
 
+  const clearCursor = useCallback(() => {
+    if (rafIdRef.current !== null) {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = null;
+    }
+    pendingCoordsRef.current = null;
+    updateMyPresence({ cursor: null });
+  }, [updateMyPresence]);
+
   // Clear cursor presence immediately when switching files so stale cursors don't linger
   useEffect(() => {
-    updateMyPresence({ cursor: null });
-  }, [fileId, updateMyPresence]);
+    clearCursor();
+  }, [fileId, clearCursor]);
+
+  // Hide mouse pointer when user is actively writing/typing in Monaco
+  useEffect(() => {
+    if (!editorInstance) return;
+
+    const keySub = editorInstance.onKeyDown?.(() => {
+      clearCursor();
+    });
+
+    const pasteSub = editorInstance.onDidPaste?.(() => {
+      clearCursor();
+    });
+
+    return () => {
+      keySub?.dispose?.();
+      pasteSub?.dispose?.();
+    };
+  }, [clearCursor, editorInstance]);
+
+  // Also catch keyboard events on inputs/textarea/Monaco inputarea
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target?.tagName === "TEXTAREA" ||
+        target?.tagName === "INPUT" ||
+        Boolean(target?.classList?.contains?.("inputarea"))
+      ) {
+        clearCursor();
+      }
+    };
+
+    window.addEventListener("keydown", handleGlobalKeyDown, true);
+    return () => {
+      window.removeEventListener("keydown", handleGlobalKeyDown, true);
+    };
+  }, [clearCursor]);
 
   const flush = useCallback(() => {
     if (pendingCoordsRef.current) {
@@ -60,22 +108,12 @@ export function useLiveCursorTracker(options?: UseLiveCursorTrackerOptions) {
   );
 
   const handlePointerLeave = useCallback(() => {
-    if (rafIdRef.current !== null) {
-      cancelAnimationFrame(rafIdRef.current);
-      rafIdRef.current = null;
-    }
-    pendingCoordsRef.current = null;
-    updateMyPresence({ cursor: null });
-  }, [updateMyPresence]);
+    clearCursor();
+  }, [clearCursor]);
 
   useEffect(() => {
     const handleWindowBlur = () => {
-      if (rafIdRef.current !== null) {
-        cancelAnimationFrame(rafIdRef.current);
-        rafIdRef.current = null;
-      }
-      pendingCoordsRef.current = null;
-      updateMyPresence({ cursor: null });
+      clearCursor();
     };
 
     window.addEventListener("blur", handleWindowBlur);
@@ -85,7 +123,7 @@ export function useLiveCursorTracker(options?: UseLiveCursorTrackerOptions) {
         cancelAnimationFrame(rafIdRef.current);
       }
     };
-  }, [updateMyPresence]);
+  }, [clearCursor]);
 
   return {
     handlePointerMove,

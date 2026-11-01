@@ -73,4 +73,48 @@ describe("useLiveCursorTracker hook", () => {
 
     expect(updateMyPresenceMock).toHaveBeenCalledWith({ cursor: null });
   });
+
+  it("hides cursor when user types in Monaco editor", () => {
+    updateMyPresenceMock.mockClear();
+    let keydownCb: (() => void) | undefined;
+    const fakeEditor = {
+      getScrollLeft: () => 0,
+      getScrollTop: () => 0,
+      onKeyDown: (cb: () => void) => {
+        keydownCb = cb;
+        return { dispose: () => {} };
+      },
+    };
+
+    renderHook(() =>
+      useLiveCursorTracker({ fileId: "file-1", editorInstance: fakeEditor }),
+    );
+
+    updateMyPresenceMock.mockClear();
+
+    act(() => {
+      keydownCb?.();
+    });
+
+    expect(updateMyPresenceMock).toHaveBeenCalledWith({ cursor: null });
+  });
+
+  it("hides cursor when global keydown fires inside a textarea or inputarea", () => {
+    updateMyPresenceMock.mockClear();
+    renderHook(() => useLiveCursorTracker({ fileId: "file-1" }));
+
+    updateMyPresenceMock.mockClear();
+
+    const textarea = document.createElement("textarea");
+    document.body.appendChild(textarea);
+
+    act(() => {
+      textarea.dispatchEvent(
+        new KeyboardEvent("keydown", { bubbles: true, key: "a" }),
+      );
+    });
+
+    expect(updateMyPresenceMock).toHaveBeenCalledWith({ cursor: null });
+    textarea.remove();
+  });
 });
