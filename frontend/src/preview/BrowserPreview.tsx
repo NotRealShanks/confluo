@@ -106,15 +106,20 @@ export function BrowserPreview({
     });
   }, [currentNode, currentPath, view, doc, projectId, refreshTrigger]);
 
-  // Handle postMessage navigation & error reports from sandboxed iframe
+  // Handle postMessage navigation & error reports strictly from the preview iframe
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      // Must be an object message from the preview iframe
+      // Strictly accept only messages originating from this preview iframe's contentWindow
+      const iframeWindow = iframeRef.current?.contentWindow;
+      if (!iframeWindow || event.source !== iframeWindow) return;
+
+      // Must be an object message matching expected schemas
       if (!event.data || typeof event.data !== "object") return;
 
-      if (event.data.type === "CONFLUO_PREVIEW_NAVIGATE") {
-        const href = event.data.href;
-        if (typeof href === "string") {
+      const { type } = event.data as { type?: unknown };
+      if (type === "CONFLUO_PREVIEW_NAVIGATE") {
+        const href = (event.data as { href?: unknown }).href;
+        if (typeof href === "string" && href.trim().length > 0) {
           const targetPath = resolveRelativePath(currentPath, href);
           if (targetPath) {
             const targetNode = findNodeByWorkspacePath(view, targetPath);
@@ -129,9 +134,11 @@ export function BrowserPreview({
             }
           }
         }
-      } else if (event.data.type === "CONFLUO_PREVIEW_ERROR") {
-        const msg = event.data.message || "Script execution error";
-        const line = event.data.lineno ? ` (line ${event.data.lineno})` : "";
+      } else if (type === "CONFLUO_PREVIEW_ERROR") {
+        const rawMsg = (event.data as { message?: unknown }).message;
+        const msg = typeof rawMsg === "string" && rawMsg.trim().length > 0 ? rawMsg.trim() : "Script execution error";
+        const lineno = (event.data as { lineno?: unknown }).lineno;
+        const line = typeof lineno === "number" && lineno > 0 ? ` (line ${lineno})` : "";
         setRuntimeErrors((prev) => Array.from(new Set([...prev, `${msg}${line}`])));
       }
     };
@@ -332,7 +339,7 @@ export function BrowserPreview({
           key={`${currentPath}-${refreshTrigger}`}
           title="Browser Preview"
           srcDoc={bundleResult.html}
-          sandbox="allow-scripts allow-modals allow-forms allow-popups allow-popups-to-escape-sandbox"
+          sandbox="allow-scripts allow-modals allow-forms allow-popups"
           className="w-full h-full border-0"
           data-testid="browser-preview-iframe"
         />

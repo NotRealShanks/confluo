@@ -63,7 +63,7 @@ describe("BrowserPreview Component", () => {
     expect(sandbox).toContain("allow-modals");
     expect(sandbox).toContain("allow-forms");
     expect(sandbox).toContain("allow-popups");
-    expect(sandbox).toContain("allow-popups-to-escape-sandbox");
+    expect(sandbox).not.toContain("allow-popups-to-escape-sandbox");
     expect(sandbox).not.toContain("allow-same-origin");
   });
 
@@ -163,7 +163,7 @@ describe("BrowserPreview Component", () => {
     openSpy.mockRestore();
   });
 
-  it("handles iframe link navigation messages via window postMessage", () => {
+  it("handles iframe link navigation messages strictly from preview iframe contentWindow", () => {
     const { doc, view } = setupTestWorkspace();
     const onNavigateFile = vi.fn();
 
@@ -177,10 +177,13 @@ describe("BrowserPreview Component", () => {
       />,
     );
 
-    // Simulate postMessage sent by the preview runtime script
+    const iframe = screen.getByTestId("browser-preview-iframe") as HTMLIFrameElement;
+
+    // Simulate postMessage sent by the preview runtime script from the iframe
     fireEvent(
       window,
       new MessageEvent("message", {
+        source: iframe.contentWindow,
         data: {
           type: "CONFLUO_PREVIEW_NAVIGATE",
           href: "about.html",
@@ -191,6 +194,80 @@ describe("BrowserPreview Component", () => {
     const select = screen.getByRole("combobox", { name: "Select preview file" }) as HTMLSelectElement;
     expect(select.value).toBe("about.html");
     expect(onNavigateFile).toHaveBeenCalled();
+  });
+
+  it("ignores postMessage from untrusted sources or other windows", () => {
+    const { doc, view } = setupTestWorkspace();
+    const onNavigateFile = vi.fn();
+
+    render(
+      <BrowserPreview
+        doc={doc}
+        view={view}
+        initialPath="index.html"
+        onClose={vi.fn()}
+        onNavigateFile={onNavigateFile}
+      />,
+    );
+
+    // Event without iframe contentWindow source (e.g. from parent window or foreign frame)
+    fireEvent(
+      window,
+      new MessageEvent("message", {
+        source: window,
+        data: {
+          type: "CONFLUO_PREVIEW_NAVIGATE",
+          href: "about.html",
+        },
+      }),
+    );
+
+    const select = screen.getByRole("combobox", { name: "Select preview file" }) as HTMLSelectElement;
+    // Must remain on index.html, not navigated
+    expect(select.value).toBe("index.html");
+    expect(onNavigateFile).not.toHaveBeenCalled();
+  });
+
+  it("ignores postMessage with invalid or unexpected schema", () => {
+    const { doc, view } = setupTestWorkspace();
+    const onNavigateFile = vi.fn();
+
+    render(
+      <BrowserPreview
+        doc={doc}
+        view={view}
+        initialPath="index.html"
+        onClose={vi.fn()}
+        onNavigateFile={onNavigateFile}
+      />,
+    );
+
+    const iframe = screen.getByTestId("browser-preview-iframe") as HTMLIFrameElement;
+
+    // String message
+    fireEvent(
+      window,
+      new MessageEvent("message", {
+        source: iframe.contentWindow,
+        data: "SOME_RAW_STRING_MESSAGE",
+      }),
+    );
+
+    // Unrecognized type
+    fireEvent(
+      window,
+      new MessageEvent("message", {
+        source: iframe.contentWindow,
+        data: {
+          type: "MALICIOUS_INJECTED_TYPE",
+          action: "eval",
+        },
+      }),
+    );
+
+    const select = screen.getByRole("combobox", { name: "Select preview file" }) as HTMLSelectElement;
+    expect(select.value).toBe("index.html");
+    expect(onNavigateFile).not.toHaveBeenCalled();
   });
 
   it("displays missing assets warnings when dependencies are not found", () => {
@@ -227,9 +304,12 @@ describe("BrowserPreview Component", () => {
       />,
     );
 
+    const iframe = screen.getByTestId("browser-preview-iframe") as HTMLIFrameElement;
+
     fireEvent(
       window,
       new MessageEvent("message", {
+        source: iframe.contentWindow,
         data: {
           type: "CONFLUO_PREVIEW_ERROR",
           message: "Uncaught ReferenceError: foo is not defined",
