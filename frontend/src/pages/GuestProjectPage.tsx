@@ -7,6 +7,7 @@ import { Room } from "../Room";
 import { RoomErrorBoundary } from "../components/RoomErrorBoundary";
 import { ConnectionStatus, ConnectionOfflineBanner } from "../collaborative/ConnectionStatus";
 import { LiveAvatarStack } from "../collaborative/LiveAvatarStack";
+import { FollowProvider } from "../collaborative/FollowContext";
 import { CollaborativeWorkspace } from "./ProjectPage";
 
 export default function GuestProjectPage() {
@@ -46,17 +47,19 @@ export default function GuestProjectPage() {
     <div className="ide-shell">
       <RoomErrorBoundary>
         <Room projectId={state.project.id} accessToken={state.token}>
-          <header className="ide-header">
-            <Link to="/" className="ide-brand"><Braces size={18} /> Confluo</Link>
-            <span className="ide-header-divider" />
-            <strong className="ide-project-name">{state.project.title}</strong>
-            <div className="ide-header-spacer" />
-            <ConnectionStatus />
-            <div className="ide-presence"><LiveAvatarStack /></div>
-            <span className="ide-guest-badge">Guest · View only</span>
-          </header>
-          <ConnectionOfflineBanner />
-          <CollaborativeWorkspace projectId={state.project.id} canInitialize={false} canRun={false} isGuest={true} />
+          <FollowProvider>
+            <header className="ide-header">
+              <Link to="/" className="ide-brand"><Braces size={18} /> Confluo</Link>
+              <span className="ide-header-divider" />
+              <strong className="ide-project-name">{state.project.title}</strong>
+              <div className="ide-header-spacer" />
+              <ConnectionStatus />
+              <div className="ide-presence"><LiveAvatarStack /></div>
+              <span className="ide-guest-badge">Guest · View only</span>
+            </header>
+            <ConnectionOfflineBanner />
+            <CollaborativeWorkspace projectId={state.project.id} canInitialize={false} canRun={false} isGuest={true} />
+          </FollowProvider>
         </Room>
       </RoomErrorBoundary>
     </div>

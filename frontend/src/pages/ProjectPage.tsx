@@ -39,7 +39,7 @@ import AccountMenu from "../components/AccountMenu";
 import { useProject } from "../projects/hooks";
 import { ensureWorkspaceIfAllowed, snapshot } from "../workspace/ops";
 import WorkspaceExplorer from "../workspace/WorkspaceExplorer";
-import { useRoom, useUpdateMyPresence } from "@liveblocks/react/suspense";
+import { useOthers, useRoom, useUpdateMyPresence } from "@liveblocks/react/suspense";
 import { FilePresenceBadge } from "../collaborative/FilePresenceBadge";
 import { initialTabState, tabReducer } from "../workspace/tabState";
 import { executeProject, type ExecutionResult } from "../api/execution";
@@ -51,6 +51,8 @@ import { TerminalPanel } from "../terminal/TerminalPanel";
 import { LiveCursors } from "../collaborative/LiveCursors";
 import { useLiveCursorTracker } from "../collaborative/useLiveCursorTracker";
 import { ConnectionStatus, ConnectionOfflineBanner } from "../collaborative/ConnectionStatus";
+import { FollowProvider, useFollow } from "../collaborative/FollowContext";
+import { FollowingBanner } from "../collaborative/FollowingBanner";
 import type { TreeView } from "../workspace/tree";
 import {
   SIDEBAR_DEFAULT_WIDTH,
@@ -638,7 +640,10 @@ export function CollaborativeWorkspace({
     }
   };
 
-  const selectFile = (id: string) => {
+  const selectFile = (id: string, preserveFollow = false) => {
+    if (!preserveFollow && followingUserId) {
+      stopFollowing();
+    }
     if (id) {
       dispatchTabs({ type: "select", fileId: id });
       const targetNode = view.nodes.get(id);
@@ -649,6 +654,41 @@ export function CollaborativeWorkspace({
       dispatchTabs({ type: "remove", fileId: selectedFileId });
     }
   };
+
+  const others = useOthers();
+  const { followingUserId, stopFollowing, registerJumpHandler } = useFollow();
+
+  // Jump to collaborator file and position
+  useEffect(() => {
+    return registerJumpHandler((userId, targetFileId) => {
+      if (targetFileId) {
+        selectFile(targetFileId, true);
+      }
+      const targetUser = others.find((o) => o.id === userId);
+      const targetCursor = targetUser?.presence?.cursor;
+      if (targetCursor && activeEditor) {
+        activeEditor.setScrollTop(Math.max(0, targetCursor.y - 120));
+      }
+    });
+  }, [activeEditor, others, registerJumpHandler]);
+
+  // Continuously track followed teammate as they switch files or scroll
+  useEffect(() => {
+    if (!followingUserId) return;
+    const targetUser = others.find((o) => o.id === followingUserId);
+    if (!targetUser) {
+      stopFollowing();
+      return;
+    }
+    const targetFile = targetUser.presence?.activeFileId;
+    if (targetFile && targetFile !== selectedFileId) {
+      selectFile(targetFile, true);
+    }
+    const targetCursor = targetUser.presence?.cursor;
+    if (targetCursor && activeEditor) {
+      activeEditor.setScrollTop(Math.max(0, targetCursor.y - 120));
+    }
+  }, [followingUserId, others, selectedFileId, activeEditor, stopFollowing]);
 
   const selectedNode = selectedFileId ? view.nodes.get(selectedFileId) : undefined;
   const isSelectedFilePreviewable =
@@ -736,6 +776,7 @@ export function CollaborativeWorkspace({
         </aside>
       )}
       <main className="ide-main">
+        <FollowingBanner />
         <div className="ide-editor-header">
           <div
             className={`ide-tabs-container ${canScrollLeft ? "can-scroll-left" : ""} ${canScrollRight ? "can-scroll-right" : ""}`}
@@ -1105,14 +1146,16 @@ function ProjectView({ id }: { id: string }) {
     <div className="ide-shell">
       <RoomErrorBoundary onRetry={() => setRoomAttempt((attempt) => attempt + 1)}>
         <Room key={roomAttempt} projectId={project.id}>
-          <ProjectHeader project={project} />
-          <ConnectionOfflineBanner />
-          <CollaborativeWorkspace
-            projectId={project.id}
-            projectName={project.title}
-            canInitialize={project.role !== "VIEWER"}
-            canRun={project.role !== "VIEWER"}
-          />
+          <FollowProvider>
+            <ProjectHeader project={project} />
+            <ConnectionOfflineBanner />
+            <CollaborativeWorkspace
+              projectId={project.id}
+              projectName={project.title}
+              canInitialize={project.role !== "VIEWER"}
+              canRun={project.role !== "VIEWER"}
+            />
+          </FollowProvider>
         </Room>
       </RoomErrorBoundary>
     </div>

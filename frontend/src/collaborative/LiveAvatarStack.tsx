@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useOthers } from "@liveblocks/react/suspense";
 import { colorFor } from "../lib/color";
+import { useFollow } from "./FollowContext";
 
 export interface LiveAvatarStackProps {
   maxVisible?: number;
@@ -31,8 +32,17 @@ export function LiveAvatarStack({
   className = "",
 }: LiveAvatarStackProps) {
   const others = useOthers();
+  const follow = useFollow();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const handleUserClick = (userId: string, activeFileId?: string | null) => {
+    if (onSelectUser) {
+      onSelectUser(userId, activeFileId);
+    } else {
+      follow.startFollowing(userId, activeFileId);
+    }
+  };
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -90,7 +100,7 @@ export function LiveAvatarStack({
               }}
               title={tooltip}
               aria-label={tooltip}
-              onClick={() => onSelectUser?.(user.id, user.activeFileId)}
+              onClick={() => handleUserClick(user.id, user.activeFileId)}
               data-testid={`avatar-${user.id}`}
             >
               <span>{initials}</span>
@@ -145,7 +155,7 @@ export function LiveAvatarStack({
                   type="button"
                   className="w-full flex items-center gap-2.5 px-3 py-1.5 hover:bg-[#27272a] transition-colors text-left text-[#e4e4e7]"
                   onClick={() => {
-                    onSelectUser?.(user.id, user.activeFileId);
+                    handleUserClick(user.id, user.activeFileId);
                     setDropdownOpen(false);
                   }}
                 >
