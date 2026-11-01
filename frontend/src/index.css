@@ -79,24 +79,9 @@ button {
 }
 
 .ide-presence {
-  max-width: 36vw;
-  overflow: hidden;
-}
-
-.ide-presence > div {
-  flex-wrap: nowrap;
-  white-space: nowrap;
-}
-
-.ide-presence span {
-  padding: 0;
-  background: transparent;
-  box-shadow: none;
-  border: 0;
-}
-
-.ide-presence span:not(:first-child) {
-  display: none;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 .ide-share-button, .ide-signout {
