@@ -8,15 +8,51 @@ import { Sandbox } from "e2b";
 dotenv.config({ path: path.resolve(import.meta.dirname, "../.env") });
 
 export const LIMITS = {
-  MAX_FILES: 50,
+  MAX_FILES: 100,
   MAX_FILE_SIZE: 500_000, // 500 KB per file
-  MAX_AGGREGATE_FILE_SIZE: 2_000_000, // 2 MB total files size
-  MAX_ENTRYPOINT_LENGTH: 256,
+  MAX_AGGREGATE_FILE_SIZE: 1_000_000, // 1 MB total files size
+  MAX_PATH_LENGTH: 200, // Maximum allowed path length
+  MAX_ENTRYPOINT_LENGTH: 200, // Maximum allowed entrypoint length
   MAX_OUTPUT_LENGTH: 100_000, // 100,000 characters per stream
-  MAX_CONCURRENT_EXECUTIONS: 5,
+  MAX_CONCURRENT_EXECUTIONS: 2, // Allow at most 2 concurrent sandboxes
   EXECUTION_TIMEOUT_MS: 15_000,
   SANDBOX_TIMEOUT_MS: 25_000,
 };
+
+export const ALLOWED_LANGUAGES = new Set([
+  "shell",
+  "bash",
+  "sh",
+  "cpp",
+  "c++",
+  "cpp-compile",
+  "cpp-run",
+  "c",
+  "c-compile",
+  "c-run",
+  "python",
+  "py",
+  "javascript",
+  "js",
+  "typescript",
+  "ts",
+  "csharp",
+  "cs",
+  "java",
+  "kotlin",
+  "kt",
+  "scala",
+  "go",
+  "rust",
+  "rs",
+  "php",
+  "ruby",
+  "rb",
+  "swift",
+  "dart",
+  "r",
+  "sql",
+]);
 
 let activeExecutions = 0;
 
@@ -43,21 +79,14 @@ export function timingSafeEqualTokens(provided: string, expected: string): boole
 
 /**
  * Validates configuration at service startup.
- * In production, RUNNER_TOKEN is mandatory and must meet minimum entropy requirements.
+ * Fails closed: refuses to start unless RUNNER_TOKEN is set and at least 32 characters.
  */
-export function validateStartupConfig(token?: string, env?: string) {
-  const isProd = (env !== undefined ? env : process.env.NODE_ENV) === "production";
+export function validateStartupConfig(token?: string) {
   const rawToken = token !== undefined ? token : process.env.RUNNER_TOKEN;
   const cleanToken = (rawToken || "").trim();
-  if (isProd) {
-    if (!cleanToken || cleanToken.length < 16) {
-      throw new Error(
-        "FATAL: RUNNER_TOKEN is required and must be at least 16 characters in production.",
-      );
-    }
-  } else if (!cleanToken) {
-    console.warn(
-      "[WARN] RUNNER_TOKEN is not configured. All execution requests will be rejected until a token is set.",
+  if (!cleanToken || cleanToken.length < 32) {
+    throw new Error(
+      "FATAL: RUNNER_TOKEN is required and must be at least 32 characters long.",
     );
   }
 }
@@ -71,8 +100,8 @@ export function truncateOutput(output: string, maxLength = LIMITS.MAX_OUTPUT_LEN
 }
 
 /**
- * Validates the execution request body, entrypoint syntax, path traversal,
- * file sizes, and aggregate limits.
+ * Pure function: Validates the execution request body, entrypoint syntax, path traversal,
+ * allowed languages, file sizes, and aggregate limits.
  */
 export function validateExecutionPayload(body: any): { valid: true } | { valid: false; error: string } {
   if (!body || typeof body !== "object") {
@@ -85,8 +114,11 @@ export function validateExecutionPayload(body: any): { valid: true } | { valid: 
   }
 
   const cleanLang = language.trim().toLowerCase();
-  if (!cleanLang || !/^[a-zA-Z0-9_\-+]+$/.test(cleanLang)) {
-    return { valid: false, error: "Invalid language identifier: only alphanumeric characters, dashes, and underscores allowed" };
+  if (!ALLOWED_LANGUAGES.has(cleanLang)) {
+    return {
+      valid: false,
+      error: `Unknown language '${language}'. Supported languages: ${Array.from(ALLOWED_LANGUAGES).join(", ")}`,
+    };
   }
 
   const cleanEntrypoint = entrypoint.trim();
@@ -130,6 +162,10 @@ export function validateExecutionPayload(body: any): { valid: true } | { valid: 
     }
 
     const rawPath = f.path.trim();
+    if (rawPath.length > LIMITS.MAX_PATH_LENGTH) {
+      return { valid: false, error: `Invalid file path '${f.path}': length exceeds maximum of ${LIMITS.MAX_PATH_LENGTH} characters` };
+    }
+
     const normalizedPath = path.posix.normalize(rawPath);
 
     if (
@@ -159,7 +195,7 @@ export function validateExecutionPayload(body: any): { valid: true } | { valid: 
 }
 
 /**
- * Builds safe execution command for supported languages.
+ * Pure function: Builds safe execution command for supported languages.
  * Non-shell languages strictly treat entrypoint as a path.
  */
 export function buildCommand(language: string, entrypoint: string): string {
@@ -310,10 +346,10 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
 app.use(authMiddleware);
 
 app.post("/v1/execute", async (req: Request, res: Response) => {
-  // Concurrency limit guard
+  // Concurrency limit guard (maximum 2 concurrent sandboxes)
   if (activeExecutions >= LIMITS.MAX_CONCURRENT_EXECUTIONS) {
     return res.status(429).json({
-      error: "Too Many Requests: Runner execution capacity reached. Please retry shortly.",
+      error: "Too Many Requests: Runner execution capacity reached (maximum 2 concurrent sandboxes). Please retry shortly.",
     });
   }
 
@@ -453,7 +489,8 @@ app.post("/v1/execute", async (req: Request, res: Response) => {
   }
 });
 
-const PORT = process.env.PORT || 4000;
+const PORT = Number(process.env.PORT) || 4000;
+const HOST = process.env.HOST || "127.0.0.1";
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
 
 if (isMain && process.env.NODE_ENV !== "test") {
@@ -464,7 +501,7 @@ if (isMain && process.env.NODE_ENV !== "test") {
     process.exit(1);
   }
 
-  app.listen(PORT, () => {
-    console.log(`Confluo E2B Runner listening on http://localhost:${PORT}`);
+  app.listen(PORT, HOST, () => {
+    console.log(`Confluo E2B Runner listening on http://${HOST}:${PORT}`);
   });
 }

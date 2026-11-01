@@ -106,7 +106,7 @@ export function EditorGutterComments({
     return editor.getLayoutInfo();
   }, [editor, scrollVersion]);
 
-  const lineHeight = layoutInfo.lineHeight || 19;
+  const lineHeight = (layoutInfo as { lineHeight?: number }).lineHeight || 19;
   const buttonHeight = 18;
   const verticalOffset = Math.max(0, Math.floor((lineHeight - buttonHeight) / 2));
 

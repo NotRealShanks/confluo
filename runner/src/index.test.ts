@@ -14,32 +14,28 @@ import {
 
 describe("Runner Security & Authentication", () => {
   describe("validateStartupConfig", () => {
-    it("fails startup in production if RUNNER_TOKEN is missing or empty", () => {
+    it("fails startup if RUNNER_TOKEN is missing or empty", () => {
       assert.throws(
-        () => validateStartupConfig("", "production"),
+        () => validateStartupConfig(""),
         /RUNNER_TOKEN is required/,
       );
       assert.throws(
-        () => validateStartupConfig("   ", "production"),
+        () => validateStartupConfig("   "),
         /RUNNER_TOKEN is required/,
       );
     });
 
-    it("fails startup in production if RUNNER_TOKEN is too short (< 16 chars)", () => {
+    it("fails startup if RUNNER_TOKEN is too short (< 32 chars)", () => {
       assert.throws(
-        () => validateStartupConfig("short-secret", "production"),
-        /at least 16 characters/,
+        () => validateStartupConfig("short-secret-less-than-32-chars"),
+        /at least 32 characters/,
       );
     });
 
-    it("succeeds in production when RUNNER_TOKEN has adequate entropy", () => {
+    it("succeeds when RUNNER_TOKEN has at least 32 characters", () => {
       assert.doesNotThrow(() =>
-        validateStartupConfig("a-very-long-production-runner-token-secret-12345", "production"),
+        validateStartupConfig("a-very-long-production-runner-token-secret-12345"),
       );
-    });
-
-    it("does not throw in development even if RUNNER_TOKEN is empty", () => {
-      assert.doesNotThrow(() => validateStartupConfig("", "development"));
     });
   });
 
@@ -83,15 +79,44 @@ describe("Runner Security & Authentication", () => {
       );
     });
 
-    it("rejects invalid language identifiers", () => {
+    it("rejects unknown or unallowed language identifiers (400)", () => {
+      const unknownLanguages = ["pascal", "fortran", "cobol", "malicious_lang", "perl"];
+      for (const lang of unknownLanguages) {
+        const res = validateExecutionPayload({
+          language: lang,
+          entrypoint: "main.py",
+          files: [],
+        });
+        assert.equal(res.valid, false);
+        if (!res.valid) {
+          assert.match(res.error, /Unknown language/);
+        }
+      }
+    });
+
+    it("rejects entrypoint over 200 characters", () => {
+      const longEntrypoint = "a".repeat(201) + ".py";
       const res = validateExecutionPayload({
-        language: "python; rm -rf /",
-        entrypoint: "main.py",
+        language: "python",
+        entrypoint: longEntrypoint,
         files: [],
       });
       assert.equal(res.valid, false);
       if (!res.valid) {
-        assert.match(res.error, /Invalid language identifier/);
+        assert.match(res.error, /length must be between 1 and 200/);
+      }
+    });
+
+    it("rejects file path over 200 characters", () => {
+      const longPath = "dir/" + "a".repeat(200) + ".txt";
+      const res = validateExecutionPayload({
+        language: "python",
+        entrypoint: "main.py",
+        files: [{ path: longPath, content: "hello" }],
+      });
+      assert.equal(res.valid, false);
+      if (!res.valid) {
+        assert.match(res.error, /length exceeds maximum of 200 characters/);
       }
     });
 
@@ -158,7 +183,7 @@ describe("Runner Security & Authentication", () => {
       assert.equal(res.valid, true);
     });
 
-    it("rejects payloads exceeding MAX_FILES", () => {
+    it("rejects payloads exceeding MAX_FILES (100)", () => {
       const files = Array.from({ length: LIMITS.MAX_FILES + 1 }, (_, i) => ({
         path: `file${i}.txt`,
         content: "test",
@@ -171,6 +196,26 @@ describe("Runner Security & Authentication", () => {
       assert.equal(res.valid, false);
       if (!res.valid) {
         assert.match(res.error, /Too many files/);
+      }
+    });
+
+    it("rejects aggregate files size exceeding 1 MB", () => {
+      const chunkSize = 250_000;
+      const files = [
+        { path: "f1.txt", content: "A".repeat(chunkSize) },
+        { path: "f2.txt", content: "B".repeat(chunkSize) },
+        { path: "f3.txt", content: "C".repeat(chunkSize) },
+        { path: "f4.txt", content: "D".repeat(chunkSize) },
+        { path: "f5.txt", content: "E".repeat(100) }, // Total > 1,000,000
+      ];
+      const res = validateExecutionPayload({
+        language: "python",
+        entrypoint: "main.py",
+        files,
+      });
+      assert.equal(res.valid, false);
+      if (!res.valid) {
+        assert.match(res.error, /Aggregate files size exceeds maximum limit/);
       }
     });
 
@@ -190,19 +235,6 @@ describe("Runner Security & Authentication", () => {
           files: [{ path: badPath, content: "malicious" }],
         });
         assert.equal(res.valid, false, `Expected rejection for file path: ${badPath}`);
-      }
-    });
-
-    it("rejects individual file exceeding MAX_FILE_SIZE", () => {
-      const oversizedContent = "A".repeat(LIMITS.MAX_FILE_SIZE + 10);
-      const res = validateExecutionPayload({
-        language: "python",
-        entrypoint: "main.py",
-        files: [{ path: "big.txt", content: oversizedContent }],
-      });
-      assert.equal(res.valid, false);
-      if (!res.valid) {
-        assert.match(res.error, /exceeds maximum size/);
       }
     });
 
@@ -261,16 +293,23 @@ describe("Runner Security & Authentication", () => {
         'javac "com/example/Main.java" && java -cp "com/example" "Main"',
       );
     });
+
+    it("runs shell command as-is", () => {
+      assert.equal(
+        buildCommand("shell", "pwd && ls -la"),
+        "pwd && ls -la",
+      );
+    });
   });
 
   describe("HTTP Service Endpoints", () => {
-    const TEST_TOKEN = "test-internal-runner-secret-key-123456";
+    const TEST_TOKEN = "a-very-long-test-runner-token-secret-key-32chars";
     let server: Server;
     let baseUrl: string;
 
     before((_, done) => {
       process.env.RUNNER_TOKEN = TEST_TOKEN;
-      server = app.listen(0, () => {
+      server = app.listen(0, "127.0.0.1", () => {
         const addr = server.address();
         if (typeof addr === "object" && addr) {
           baseUrl = `http://127.0.0.1:${addr.port}`;
@@ -313,7 +352,7 @@ describe("Runner Security & Authentication", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Runner-Token": "wrong-token-value",
+          "X-Runner-Token": "wrong-token-value-of-any-length",
         },
         body: JSON.stringify({
           language: "python",
@@ -345,7 +384,7 @@ describe("Runner Security & Authentication", () => {
       assert.match(data.error, /path traversal/);
     });
 
-    it("/v1/execute rejects requests when active execution limit is reached (429)", async () => {
+    it("/v1/execute rejects requests when active execution limit (2) is reached (429)", async () => {
       setActiveExecutionsForTesting(LIMITS.MAX_CONCURRENT_EXECUTIONS);
       try {
         const res = await fetch(`${baseUrl}/v1/execute`, {
@@ -362,7 +401,7 @@ describe("Runner Security & Authentication", () => {
         });
         assert.equal(res.status, 429);
         const data = await res.json();
-        assert.match(data.error, /capacity reached/);
+        assert.match(data.error, /maximum 2 concurrent sandboxes/);
       } finally {
         setActiveExecutionsForTesting(0);
       }
