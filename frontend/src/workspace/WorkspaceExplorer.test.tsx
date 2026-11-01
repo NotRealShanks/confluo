@@ -8,6 +8,7 @@ import { createNode, getFileText, snapshot } from "./ops";
 vi.mock("@liveblocks/react/suspense", () => ({
   useSelf: (selector: (value: { canWrite: boolean }) => unknown) =>
     selector({ canWrite: true }),
+  useOthers: () => [],
 }));
 
 afterEach(() => {

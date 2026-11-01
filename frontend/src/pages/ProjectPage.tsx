@@ -39,7 +39,8 @@ import AccountMenu from "../components/AccountMenu";
 import { useProject } from "../projects/hooks";
 import { ensureWorkspaceIfAllowed, snapshot } from "../workspace/ops";
 import WorkspaceExplorer from "../workspace/WorkspaceExplorer";
-import { useRoom } from "@liveblocks/react/suspense";
+import { useRoom, useUpdateMyPresence } from "@liveblocks/react/suspense";
+import { FilePresenceBadge } from "../collaborative/FilePresenceBadge";
 import { initialTabState, tabReducer } from "../workspace/tabState";
 import { executeProject, type ExecutionResult } from "../api/execution";
 import { getFileCapability } from "../workspace/fileCapabilities";
@@ -441,6 +442,10 @@ export function CollaborativeWorkspace({
   const tabsContainerRef = useRef<HTMLDivElement>(null);
   const activeTabRef = useRef<HTMLDivElement>(null);
   const moreMenuRef = useRef<HTMLDivElement>(null);
+  const updateMyPresence = useUpdateMyPresence();
+  useEffect(() => {
+    updateMyPresence({ activeFileId: selectedFileId });
+  }, [selectedFileId, updateMyPresence]);
   const [activeEditor, setActiveEditor] = useState<editor.IStandaloneCodeEditor | null>(null);
   const { handlePointerMove, handlePointerLeave } = useLiveCursorTracker({
     fileId: selectedFileId,
@@ -766,6 +771,7 @@ export function CollaborativeWorkspace({
                         {fileIcon(node.name, node.type)}
                         <span>{view.displayNames.get(id) ?? node.name}</span>
                       </button>
+                      <FilePresenceBadge fileId={id} className="mx-1" />
                       <button
                         type="button"
                         className="ide-tab-close"

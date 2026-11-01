@@ -22,6 +22,7 @@ import { getContextMenuPosition } from "./contextMenu";
 import { descendantIds } from "./tree";
 import type { TreeNode } from "./types";
 import { fileIcon } from "./fileIcon";
+import { FilePresenceBadge } from "../collaborative/FilePresenceBadge";
 import { createZip, importBinaryEntry, importEntry, isTextBuffer, nodeForPath, normalizeImportPath, pathForNode } from "./fileManagement";
 import { deleteAsset, downloadAsset, uploadAsset } from "../api/assets";
 import { ApiError } from "../api/client";
@@ -460,8 +461,9 @@ export default function WorkspaceExplorer({
               }}
             >
               {fileIcon(node.name, node.type, expanded.has(node.id))}
-              {view.displayNames.get(node.id) ?? node.name}
+              <span className="truncate">{view.displayNames.get(node.id) ?? node.name}</span>
             </button>}
+            {node.type === "file" && <FilePresenceBadge fileId={node.id} className="mr-2" />}
           </div>
           {children.length > 0 && (
             <ul className="ide-tree-subgroup" role="group">

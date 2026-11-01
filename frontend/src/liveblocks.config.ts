@@ -7,6 +7,7 @@ declare global {
         y: number;
         fileId: string | null;
       } | null;
+      activeFileId?: string | null;
     };
     UserMeta: {
       id: string;
