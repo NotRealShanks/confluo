@@ -162,4 +162,26 @@ class ExecutionServiceTests {
 
         assertEquals(HttpStatus.SERVICE_UNAVAILABLE, ex.getStatusCode());
     }
+
+    @Test
+    void missingServiceTokenThrowsServiceUnavailable() {
+        ReflectionTestUtils.setField(executionService, "executionServiceToken", "");
+
+        Project project = new Project();
+        project.setId("p-1");
+        when(projectService.requireAccess("user-editor", "p-1"))
+                .thenReturn(new ProjectService.Access(project, Role.EDITOR));
+
+        ExecutionRequest request = new ExecutionRequest(
+                "python",
+                "script.py",
+                List.of(new ExecutionFile("script.py", "print(1)"))
+        );
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                executionService.execute("user-editor", "p-1", request));
+
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, ex.getStatusCode());
+        assertEquals("Code execution authentication is not configured. Configure APP_EXECUTION_SERVICE_TOKEN.", ex.getReason());
+    }
 }

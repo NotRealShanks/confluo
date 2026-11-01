@@ -37,6 +37,11 @@ public class ExecutionService {
                     HttpStatus.SERVICE_UNAVAILABLE,
                     "Code execution is not configured. Configure APP_EXECUTION_SERVICE_URL.");
         }
+        if (executionServiceToken == null || executionServiceToken.isBlank()) {
+            throw new ResponseStatusException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "Code execution authentication is not configured. Configure APP_EXECUTION_SERVICE_TOKEN.");
+        }
 
         // Enforce rate limiting to prevent resource exhaustion / abuse
         rateLimitService.check("exec:" + userId);
@@ -54,11 +59,8 @@ public class ExecutionService {
             var restClient = RestClient.create(executionServiceUrl);
             var req = restClient.post()
                     .uri("/v1/execute")
-                    .header("X-Confluo-Project", projectId);
-
-            if (executionServiceToken != null && !executionServiceToken.isBlank()) {
-                req.header("X-Runner-Token", executionServiceToken);
-            }
+                    .header("X-Confluo-Project", projectId)
+                    .header("X-Runner-Token", executionServiceToken);
 
             return req.body(request)
                     .retrieve()

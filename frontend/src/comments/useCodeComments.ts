@@ -125,3 +125,4 @@ export function useCodeComments({ fileId }: UseCodeCommentsOptions = {}) {
     removeComment,
   };
 }
+

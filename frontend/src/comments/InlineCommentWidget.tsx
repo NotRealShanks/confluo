@@ -282,3 +282,4 @@ export function InlineCommentWidget({
     </div>
   );
 }
+

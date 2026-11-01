@@ -38,6 +38,8 @@ export function EditorGutterComments({
   const [activeLine, setActiveLine] = useState<number | null>(null);
   const [scrollVersion, setScrollVersion] = useState(0);
   const widgetContainerRef = useRef<HTMLDivElement>(null);
+  const isHoveringButtonRef = useRef(false);
+  const clearHoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Jump to focused line if specified (e.g. from inbox notification)
   useEffect(() => {
@@ -50,6 +52,15 @@ export function EditorGutterComments({
     }
   }, [focusLine, editor, onClearFocusLine]);
 
+  // Clean up timers on unmount
+  useEffect(() => {
+    return () => {
+      if (clearHoverTimeoutRef.current) {
+        clearTimeout(clearHoverTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // Listen to Monaco editor scroll, layout, and mouse move events
   useEffect(() => {
     if (!editor) return;
@@ -58,11 +69,22 @@ export function EditorGutterComments({
       editor.onMouseMove((e) => {
         const line = e.target.position?.lineNumber;
         if (typeof line === "number" && line > 0) {
+          if (clearHoverTimeoutRef.current) {
+            clearTimeout(clearHoverTimeoutRef.current);
+            clearHoverTimeoutRef.current = null;
+          }
           setHoveredLine(line);
         }
       }),
       editor.onMouseLeave(() => {
-        setHoveredLine(null);
+        if (clearHoverTimeoutRef.current) {
+          clearTimeout(clearHoverTimeoutRef.current);
+        }
+        clearHoverTimeoutRef.current = setTimeout(() => {
+          if (!isHoveringButtonRef.current) {
+            setHoveredLine(null);
+          }
+        }, 150);
       }),
       editor.onDidScrollChange(() => {
         setScrollVersion((v) => v + 1);
@@ -80,19 +102,22 @@ export function EditorGutterComments({
   // Compute layout offsets
   const layoutInfo = useMemo(() => {
     void scrollVersion;
-    if (!editor) return { contentLeft: 60, gutterWidth: 50 };
+    if (!editor) return { contentLeft: 60, gutterWidth: 50, lineHeight: 19 };
     return editor.getLayoutInfo();
   }, [editor, scrollVersion]);
 
-  // Compute top pixel position for a given line number
+  const lineHeight = layoutInfo.lineHeight || 19;
+  const buttonHeight = 18;
+  const verticalOffset = Math.max(0, Math.floor((lineHeight - buttonHeight) / 2));
+
+  // Compute top pixel position for a given line number (perfect vertical centering without extra offset)
   const getLineTop = useCallback(
     (line: number) => {
       void scrollVersion;
       if (!editor) return 0;
-      // 12px matches Monaco top padding in options: padding: { top: 12 }
-      return editor.getTopForLineNumber(line) - editor.getScrollTop() + 12;
+      return editor.getTopForLineNumber(line) - editor.getScrollTop() + verticalOffset;
     },
-    [editor, scrollVersion],
+    [editor, scrollVersion, verticalOffset],
   );
 
   // Visible height and bounds check
@@ -103,7 +128,7 @@ export function EditorGutterComments({
     return Array.from(threadsByLine.keys()).sort((a, b) => a - b);
   }, [threadsByLine]);
 
-  const buttonLeft = Math.max(8, (layoutInfo.contentLeft || 60) - 28);
+  const buttonLeft = Math.max(8, (layoutInfo.contentLeft || 60) - 26);
 
   return (
     <div
@@ -134,7 +159,12 @@ export function EditorGutterComments({
               isResolved ? "is-resolved" : ""
             }`}
             style={{ top: `${top}px`, left: `${buttonLeft}px` }}
+            onPointerDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
             onClick={(e) => {
+              e.preventDefault();
               e.stopPropagation();
               setActiveLine(isActive ? null : line);
             }}
@@ -158,14 +188,32 @@ export function EditorGutterComments({
             type="button"
             className="ide-gutter-add-comment-btn"
             style={{ top: `${getLineTop(hoveredLine)}px`, left: `${buttonLeft}px` }}
+            onMouseEnter={() => {
+              isHoveringButtonRef.current = true;
+              if (clearHoverTimeoutRef.current) {
+                clearTimeout(clearHoverTimeoutRef.current);
+                clearHoverTimeoutRef.current = null;
+              }
+            }}
+            onMouseLeave={() => {
+              isHoveringButtonRef.current = false;
+              clearHoverTimeoutRef.current = setTimeout(() => {
+                setHoveredLine(null);
+              }, 150);
+            }}
+            onPointerDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
             onClick={(e) => {
+              e.preventDefault();
               e.stopPropagation();
               setActiveLine(hoveredLine);
             }}
             title={`Add comment on line ${hoveredLine}`}
             aria-label={`Add comment on line ${hoveredLine}`}
           >
-            <Plus size={12} strokeWidth={2.5} />
+            <Plus size={13} strokeWidth={2.5} />
           </button>
         )}
 
@@ -174,7 +222,7 @@ export function EditorGutterComments({
         <div
           className="ide-inline-widget-anchor"
           style={{
-            top: `${Math.max(16, getLineTop(activeLine) + 24)}px`,
+            top: `${Math.max(16, getLineTop(activeLine) + lineHeight + 4)}px`,
             left: `${Math.max(48, layoutInfo.contentLeft || 60)}px`,
           }}
         >
