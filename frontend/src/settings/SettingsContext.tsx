@@ -21,7 +21,21 @@ function loadInitialSettings(): IdeSettings {
   }
   try {
     const raw = window.localStorage.getItem(SETTINGS_STORAGE_KEY);
-    if (!raw) return { ...DEFAULT_SETTINGS };
+    if (!raw) {
+      // Migrate from v1 if present, upgrading minimap to true
+      const legacyRaw = window.localStorage.getItem("confluo_ide_settings_v1");
+      if (legacyRaw) {
+        try {
+          const legacy = JSON.parse(legacyRaw);
+          const migrated = validateSettings({ ...legacy, minimap: true });
+          window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(migrated));
+          return migrated;
+        } catch {
+          // ignore
+        }
+      }
+      return { ...DEFAULT_SETTINGS };
+    }
     const parsed = JSON.parse(raw);
     return validateSettings(parsed);
   } catch {

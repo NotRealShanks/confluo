@@ -66,7 +66,7 @@ export const DEFAULT_SETTINGS: IdeSettings = {
   reducedMotion: "system",
 };
 
-export const SETTINGS_STORAGE_KEY = "confluo_ide_settings_v1";
+export const SETTINGS_STORAGE_KEY = "confluo_ide_settings_v2";
 
 export function clampFontSize(size: unknown): number {
   if (typeof size !== "number" || Number.isNaN(size)) {
