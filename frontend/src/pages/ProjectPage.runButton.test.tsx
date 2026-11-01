@@ -34,6 +34,7 @@ vi.mock("@liveblocks/react/suspense", () => ({
     selector({ id: "user-1", info: { name: "Alice" }, canWrite: true }),
   useUpdateMyPresence: () => vi.fn(),
   useOthers: () => [],
+  useStatus: () => "connected",
 }));
 
 vi.mock("@liveblocks/yjs", () => ({

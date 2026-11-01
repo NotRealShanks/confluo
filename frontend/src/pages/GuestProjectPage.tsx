@@ -5,6 +5,7 @@ import { ApiError } from "../api/client";
 import { exchangeShareToken } from "../api/shareLinks";
 import { Room } from "../Room";
 import { RoomErrorBoundary } from "../components/RoomErrorBoundary";
+import { ConnectionStatus, ConnectionOfflineBanner } from "../collaborative/ConnectionStatus";
 import { CollaborativeWorkspace } from "./ProjectPage";
 
 export default function GuestProjectPage() {
@@ -49,8 +50,10 @@ export default function GuestProjectPage() {
             <span className="ide-header-divider" />
             <strong className="ide-project-name">{state.project.title}</strong>
             <div className="ide-header-spacer" />
+            <ConnectionStatus />
             <span className="ide-guest-badge">Guest · View only</span>
           </header>
+          <ConnectionOfflineBanner />
           <CollaborativeWorkspace projectId={state.project.id} canInitialize={false} canRun={false} isGuest={true} />
         </Room>
       </RoomErrorBoundary>

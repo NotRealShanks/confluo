@@ -48,6 +48,7 @@ import { ProjectChatPanel } from "../chat/ProjectChatPanel";
 import { TerminalPanel } from "../terminal/TerminalPanel";
 import { LiveCursors } from "../collaborative/LiveCursors";
 import { useLiveCursorTracker } from "../collaborative/useLiveCursorTracker";
+import { ConnectionStatus, ConnectionOfflineBanner } from "../collaborative/ConnectionStatus";
 import type { TreeView } from "../workspace/tree";
 import {
   SIDEBAR_DEFAULT_WIDTH,
@@ -1063,6 +1064,7 @@ function ProjectHeader({ project }: { project: Project }) {
         <ChevronDown size={14} className="ide-muted-icon" />
         <strong className="ide-project-name">{project.title}</strong>
         <div className="ide-header-spacer" />
+        <ConnectionStatus />
         <div className="ide-presence"><Presence /></div>
         <RoleBadge role={project.role} />
         {project.role === "OWNER" && <button type="button" className="ide-share-button" onClick={() => setShareOpen(true)}><Share2 size={15} /> Share</button>}
@@ -1087,6 +1089,7 @@ function ProjectView({ id }: { id: string }) {
       <RoomErrorBoundary onRetry={() => setRoomAttempt((attempt) => attempt + 1)}>
         <Room key={roomAttempt} projectId={project.id}>
           <ProjectHeader project={project} />
+          <ConnectionOfflineBanner />
           <CollaborativeWorkspace
             projectId={project.id}
             projectName={project.title}

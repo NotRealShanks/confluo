@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from "react";
+
 export interface CursorProps {
   x: number;
   y: number;
@@ -6,11 +8,46 @@ export interface CursorProps {
 }
 
 export function Cursor({ x, y, name, color }: CursorProps) {
+  // Stale detection: dim if stationary > 5s, fade out if stationary > 12s
+  const [prevPos, setPrevPos] = useState({ x, y });
+  const [opacity, setOpacity] = useState(1);
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  if (prevPos.x !== x || prevPos.y !== y) {
+    setPrevPos({ x, y });
+    setOpacity(1);
+  }
+
+  useEffect(() => {
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
+
+    // Dim when stationary for 5s
+    idleTimerRef.current = setTimeout(() => {
+      setOpacity(0.5);
+    }, 5000);
+
+    // Fade out when inactive for 12s
+    fadeTimerRef.current = setTimeout(() => {
+      setOpacity(0);
+    }, 12000);
+
+    return () => {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
+    };
+  }, [x, y]);
+
   return (
     <div
-      className="absolute top-0 left-0 pointer-events-none select-none transition-transform duration-75 ease-out z-40"
+      className="absolute top-0 left-0 pointer-events-none select-none z-40"
       style={{
-        transform: `translateX(${x}px) translateY(${y}px)`,
+        transform: `translate3d(${x}px, ${y}px, 0)`,
+        willChange: "transform, opacity",
+        opacity,
+        transition:
+          "transform 0.08s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease-out",
       }}
       data-testid="live-cursor"
     >

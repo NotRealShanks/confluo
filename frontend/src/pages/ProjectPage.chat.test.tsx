@@ -40,6 +40,7 @@ vi.mock("@liveblocks/react/suspense", () => ({
   useBroadcastEvent: () => vi.fn(),
   useEventListener: vi.fn(),
   useUpdateMyPresence: () => vi.fn(),
+  useStatus: () => "connected",
 }));
 
 vi.mock("@liveblocks/yjs", () => ({
