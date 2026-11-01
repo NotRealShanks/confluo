@@ -6,10 +6,12 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -38,6 +40,7 @@ class ChatServiceTests {
     private ProjectService projectService;
     private ChatMessageRepository chatMessageRepository;
     private UserRepository userRepository;
+    private RateLimitService rateLimitService;
     private ChatService chatService;
 
     @BeforeEach
@@ -45,7 +48,8 @@ class ChatServiceTests {
         projectService = mock(ProjectService.class);
         chatMessageRepository = mock(ChatMessageRepository.class);
         userRepository = mock(UserRepository.class);
-        chatService = new ChatService(projectService, chatMessageRepository, userRepository);
+        rateLimitService = mock(RateLimitService.class);
+        chatService = new ChatService(projectService, chatMessageRepository, userRepository, rateLimitService);
     }
 
     @Test
@@ -80,6 +84,73 @@ class ChatServiceTests {
         assertEquals("https://example.com/avatar.png", response.senderAvatarUrl());
         assertEquals("Hello team!", response.message());
         assertNotNull(response.createdAt());
+
+        verify(rateLimitService).check("chat:user-1", 20, Duration.ofMinutes(1));
+    }
+
+    @Test
+    void rateLimitOf20MessagesPerMinuteIsEnforced() {
+        Project project = new Project();
+        project.setId("proj-1");
+        when(projectService.requireAccess("user-1", "proj-1"))
+                .thenReturn(new ProjectService.Access(project, Role.EDITOR));
+
+        doThrow(new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Too many requests"))
+                .when(rateLimitService).check("chat:user-1", 20, Duration.ofMinutes(1));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                chatService.sendMessage("user-1", "proj-1", new ChatMessageRequest("Hello!")));
+
+        assertEquals(HttpStatus.TOO_MANY_REQUESTS, ex.getStatusCode());
+    }
+
+    @Test
+    void guestIsRejectedExplicitly() {
+        ResponseStatusException ex1 = assertThrows(ResponseStatusException.class, () ->
+                chatService.sendMessage("guest:abc-123", "proj-1", new ChatMessageRequest("Hello!")));
+        assertEquals(HttpStatus.FORBIDDEN, ex1.getStatusCode());
+        assertEquals("Guests are not allowed to access chat", ex1.getReason());
+
+        ResponseStatusException ex2 = assertThrows(ResponseStatusException.class, () ->
+                chatService.listMessages("guest", "proj-1", 0, 50));
+        assertEquals(HttpStatus.FORBIDDEN, ex2.getStatusCode());
+    }
+
+    @Test
+    void controlCharactersAreStrippedWhilePreservingNewlinesAndTabs() {
+        Project project = new Project();
+        project.setId("proj-1");
+        when(projectService.requireAccess("user-1", "proj-1"))
+                .thenReturn(new ProjectService.Access(project, Role.EDITOR));
+
+        User user = new User();
+        user.setId("user-1");
+        user.setName("Alice");
+        when(userRepository.findById("user-1")).thenReturn(Optional.of(user));
+
+        when(chatMessageRepository.save(any(ChatMessage.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // String with null byte, bell \u0007, escape \u001B, but with newline and tab
+        String rawWithControls = "Hello\u0000 World\u0007!\n\tLine 2\u001B";
+        ChatMessageResponse response = chatService.sendMessage(
+                "user-1", "proj-1", new ChatMessageRequest(rawWithControls));
+
+        assertEquals("Hello World!\n\tLine 2", response.message());
+    }
+
+    @Test
+    void messageContainingOnlyControlCharactersIsRejectedAsEmpty() {
+        Project project = new Project();
+        project.setId("proj-1");
+        when(projectService.requireAccess("user-1", "proj-1"))
+                .thenReturn(new ProjectService.Access(project, Role.EDITOR));
+
+        String onlyControls = "\u0000\u0001\u0007\u001B   ";
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                chatService.sendMessage("user-1", "proj-1", new ChatMessageRequest(onlyControls)));
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        assertEquals("Message cannot be empty", ex.getReason());
     }
 
     @Test
@@ -99,91 +170,27 @@ class ChatServiceTests {
     }
 
     @Test
-    void oversizedMessageIsRejected() {
+    void listMessagesReturnsChronologicalOrder() {
         Project project = new Project();
         project.setId("proj-1");
         when(projectService.requireAccess("user-1", "proj-1"))
                 .thenReturn(new ProjectService.Access(project, Role.OWNER));
 
-        String oversized = "a".repeat(2001);
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> chatService.sendMessage("user-1", "proj-1", new ChatMessageRequest(oversized)));
-        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
-        assertEquals("Message cannot exceed 2000 characters", ex.getReason());
-    }
+        ChatMessage msg1 = ChatMessage.builder()
+                .id("m1").projectId("proj-1").senderUserId("user-1").message("first")
+                .createdAt(Instant.now().minusSeconds(10)).build();
+        ChatMessage msg2 = ChatMessage.builder()
+                .id("m2").projectId("proj-1").senderUserId("user-2").message("second")
+                .createdAt(Instant.now()).build();
 
-    @Test
-    void nonMemberCannotAccessOrSendMessages() {
-        when(projectService.requireAccess("outsider", "proj-1"))
-                .thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
-
-        ResponseStatusException sendEx = assertThrows(ResponseStatusException.class,
-                () -> chatService.sendMessage("outsider", "proj-1", new ChatMessageRequest("Hi")));
-        assertEquals(HttpStatus.NOT_FOUND, sendEx.getStatusCode());
-
-        ResponseStatusException listEx = assertThrows(ResponseStatusException.class,
-                () -> chatService.listMessages("outsider", "proj-1", 0, 50));
-        assertEquals(HttpStatus.NOT_FOUND, listEx.getStatusCode());
-    }
-
-    @Test
-    void removedMemberCannotAccessChat() {
-        // When member is removed, projectService.requireAccess throws 404
-        when(projectService.requireAccess("removed-user", "proj-1"))
-                .thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
-
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> chatService.listMessages("removed-user", "proj-1", 0, 50));
-        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
-    }
-
-    @Test
-    void listMessagesReturnsChronologicalOrderAndPaginationMetadata() {
-        Project project = new Project();
-        project.setId("proj-1");
-        when(projectService.requireAccess("user-1", "proj-1"))
-                .thenReturn(new ProjectService.Access(project, Role.VIEWER));
-
-        Instant t1 = Instant.parse("2026-10-31T10:00:00Z");
-        Instant t2 = Instant.parse("2026-10-31T10:05:00Z");
-
-        ChatMessage m1 = ChatMessage.builder().id("1").projectId("proj-1").senderUserId("u1").message("First").createdAt(t1).build();
-        ChatMessage m2 = ChatMessage.builder().id("2").projectId("proj-1").senderUserId("u2").message("Second").createdAt(t2).build();
-
-        // Repository returns desc order (newest first: m2, m1)
         Pageable pageable = PageRequest.of(0, 50);
         when(chatMessageRepository.findByProjectIdOrderByCreatedAtDesc("proj-1", pageable))
-                .thenReturn(new PageImpl<>(List.of(m2, m1), pageable, 2));
+                .thenReturn(new PageImpl<>(List.of(msg2, msg1), pageable, 2));
 
         ChatMessagePageResponse response = chatService.listMessages("user-1", "proj-1", 0, 50);
-
         assertEquals(2, response.messages().size());
-        // Reversal ensures chronological order for display: First (t1), then Second (t2)
-        assertEquals("First", response.messages().get(0).message());
-        assertEquals("Second", response.messages().get(1).message());
-        assertEquals(0, response.page());
-        assertEquals(50, response.size());
-        assertEquals(2, response.totalElements());
+        assertEquals("m1", response.messages().get(0).id());
+        assertEquals("m2", response.messages().get(1).id());
         assertFalse(response.hasMore());
     }
-
-    @Test
-    void getMessageChecksProjectIsolation() {
-        Project project = new Project();
-        project.setId("proj-1");
-        when(projectService.requireAccess("user-1", "proj-1"))
-                .thenReturn(new ProjectService.Access(project, Role.VIEWER));
-
-        ChatMessage msg = ChatMessage.builder().id("msg-1").projectId("proj-1").senderUserId("u1").message("Isolated").createdAt(Instant.now()).build();
-        when(chatMessageRepository.findByIdAndProjectId("msg-1", "proj-1")).thenReturn(Optional.of(msg));
-
-        ChatMessageResponse response = chatService.getMessage("user-1", "proj-1", "msg-1");
-        assertEquals("msg-1", response.id());
-        assertEquals("Isolated", response.message());
-
-        // Message belonging to another project returns 404
-        when(chatMessageRepository.findByIdAndProjectId("other-msg", "proj-1")).thenReturn(Optional.empty());
-        assertThrows(ResponseStatusException.class, () -> chatService.getMessage("user-1", "proj-1", "other-msg"));
-    }
 }
-

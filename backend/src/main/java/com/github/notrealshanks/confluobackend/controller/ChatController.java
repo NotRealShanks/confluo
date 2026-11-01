@@ -61,7 +61,7 @@ public class ChatController {
         if (authentication == null || !authentication.isAuthenticated()) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication required");
         }
-        if (authentication.getPrincipal() instanceof GuestPrincipal) {
+        if (authentication.getPrincipal() instanceof GuestPrincipal || authentication.getName().toLowerCase().startsWith("guest")) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Guest users cannot access chat");
         }
     }
