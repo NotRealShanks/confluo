@@ -1,8 +1,12 @@
-// Presence tracks live mouse cursors and active status; identity comes from the signed Liveblocks token
+// Presence tracks live mouse cursors, active file, and status; identity comes from the signed Liveblocks token
 declare global {
   interface Liveblocks {
     Presence: {
-      cursor: { x: number; y: number } | null;
+      cursor: {
+        x: number;
+        y: number;
+        fileId: string | null;
+      } | null;
     };
     UserMeta: {
       id: string;

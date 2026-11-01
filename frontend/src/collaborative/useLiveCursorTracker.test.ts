@@ -10,9 +10,15 @@ vi.mock("@liveblocks/react/suspense", () => ({
 }));
 
 describe("useLiveCursorTracker hook", () => {
-  it("tracks pointer movement and updates presence", () => {
+  it("tracks pointer movement and updates presence with fileId and scroll offset", () => {
     updateMyPresenceMock.mockClear();
-    const { result } = renderHook(() => useLiveCursorTracker());
+    const fakeEditor = {
+      getScrollLeft: () => 40,
+      getScrollTop: () => 100,
+    };
+    const { result } = renderHook(() =>
+      useLiveCursorTracker({ fileId: "file-abc", editorInstance: fakeEditor }),
+    );
 
     const fakeEvent = {
       clientX: 250,
@@ -26,8 +32,9 @@ describe("useLiveCursorTracker hook", () => {
       result.current.handlePointerMove(fakeEvent);
     });
 
+    // x = 250 - 50 + 40 = 240, y = 180 - 30 + 100 = 250
     expect(updateMyPresenceMock).toHaveBeenCalledWith({
-      cursor: { x: 200, y: 150 },
+      cursor: { x: 240, y: 250, fileId: "file-abc" },
     });
   });
 
@@ -38,6 +45,20 @@ describe("useLiveCursorTracker hook", () => {
     act(() => {
       result.current.handlePointerLeave();
     });
+
+    expect(updateMyPresenceMock).toHaveBeenCalledWith({ cursor: null });
+  });
+
+  it("clears cursor when switching files", () => {
+    updateMyPresenceMock.mockClear();
+    let currentFile = "file-1";
+    const { rerender } = renderHook(() => useLiveCursorTracker({ fileId: currentFile }));
+
+    expect(updateMyPresenceMock).toHaveBeenCalledWith({ cursor: null });
+
+    updateMyPresenceMock.mockClear();
+    currentFile = "file-2";
+    rerender();
 
     expect(updateMyPresenceMock).toHaveBeenCalledWith({ cursor: null });
   });

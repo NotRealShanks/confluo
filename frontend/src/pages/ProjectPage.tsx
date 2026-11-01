@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { ApiError } from "../api/client";
 import type { Project } from "../api/types";
+import type { editor } from "monaco-editor";
 import Editor from "../Editor";
 import Presence from "../Presence";
 import { Room } from "../Room";
@@ -440,7 +441,11 @@ export function CollaborativeWorkspace({
   const tabsContainerRef = useRef<HTMLDivElement>(null);
   const activeTabRef = useRef<HTMLDivElement>(null);
   const moreMenuRef = useRef<HTMLDivElement>(null);
-  const { handlePointerMove, handlePointerLeave } = useLiveCursorTracker();
+  const [activeEditor, setActiveEditor] = useState<editor.IStandaloneCodeEditor | null>(null);
+  const { handlePointerMove, handlePointerLeave } = useLiveCursorTracker({
+    fileId: selectedFileId,
+    editorInstance: activeEditor,
+  });
   const view = snapshot(doc);
 
   useEffect(() => {
@@ -884,7 +889,11 @@ export function CollaborativeWorkspace({
           onPointerMove={handlePointerMove}
           onPointerLeave={handlePointerLeave}
         >
-          <LiveCursors />
+          <LiveCursors
+            fileId={selectedFileId}
+            editorInstance={activeEditor}
+            containerRef={editorAreaRef}
+          />
           {(!previewOpen || !previewMaximized) && (
             isSplit ? (
               <div className="flex-1 flex min-w-0 min-h-0 h-full w-full">
@@ -911,6 +920,7 @@ export function CollaborativeWorkspace({
                       workspaceReady={ready}
                       emptyWorkspace={view.nodes.size === 0}
                       onCreateFile={canInitialize ? () => setCreateFileRequest((request) => request + 1) : undefined}
+                      onEditorMount={setActiveEditor}
                     />
                   </EditorErrorBoundary>
                 </div>
@@ -992,6 +1002,7 @@ export function CollaborativeWorkspace({
                     workspaceReady={ready}
                     emptyWorkspace={view.nodes.size === 0}
                     onCreateFile={canInitialize ? () => setCreateFileRequest((request) => request + 1) : undefined}
+                    onEditorMount={setActiveEditor}
                   />
                 </EditorErrorBoundary>
               </div>

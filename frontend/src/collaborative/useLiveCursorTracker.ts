@@ -3,11 +3,26 @@ import { useUpdateMyPresence } from "@liveblocks/react/suspense";
 
 const THROTTLE_MS = 35; // ~30 fps balances low latency with zero socket saturation
 
-export function useLiveCursorTracker() {
+export interface UseLiveCursorTrackerOptions {
+  fileId?: string | null;
+  editorInstance?: {
+    getScrollTop: () => number;
+    getScrollLeft: () => number;
+  } | null;
+}
+
+export function useLiveCursorTracker(options?: UseLiveCursorTrackerOptions) {
   const updateMyPresence = useUpdateMyPresence();
   const lastSentTimeRef = useRef(0);
-  const pendingCoordsRef = useRef<{ x: number; y: number } | null>(null);
+  const pendingCoordsRef = useRef<{ x: number; y: number; fileId: string | null } | null>(null);
   const rafIdRef = useRef<number | null>(null);
+  const fileId = options?.fileId ?? null;
+  const editorInstance = options?.editorInstance;
+
+  // Clear cursor presence immediately when switching files so stale cursors don't linger
+  useEffect(() => {
+    updateMyPresence({ cursor: null });
+  }, [fileId, updateMyPresence]);
 
   const flush = useCallback(() => {
     if (pendingCoordsRef.current) {
@@ -21,9 +36,11 @@ export function useLiveCursorTracker() {
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       const rect = e.currentTarget.getBoundingClientRect();
-      const x = Math.round(e.clientX - rect.left);
-      const y = Math.round(e.clientY - rect.top);
-      pendingCoordsRef.current = { x, y };
+      const scrollLeft = editorInstance?.getScrollLeft() ?? 0;
+      const scrollTop = editorInstance?.getScrollTop() ?? 0;
+      const x = Math.round(e.clientX - rect.left + scrollLeft);
+      const y = Math.round(e.clientY - rect.top + scrollTop);
+      pendingCoordsRef.current = { x, y, fileId };
 
       const now = performance.now();
       const timeSinceLastSend = now - lastSentTimeRef.current;
@@ -39,7 +56,7 @@ export function useLiveCursorTracker() {
         });
       }
     },
-    [flush],
+    [editorInstance, fileId, flush],
   );
 
   const handlePointerLeave = useCallback(() => {

@@ -25,6 +25,7 @@ type EditorProps = {
   workspaceReady?: boolean;
   emptyWorkspace?: boolean;
   onCreateFile?: () => void;
+  onEditorMount?: (editor: editor.IStandaloneCodeEditor | null) => void;
 };
 
 export default function Editor({
@@ -34,6 +35,7 @@ export default function Editor({
   workspaceReady = true,
   emptyWorkspace = false,
   onCreateFile,
+  onEditorMount,
 }: EditorProps) {
   const room = useRoom();
   // Identity and permission come from the signed token, not from the client
@@ -56,6 +58,13 @@ export default function Editor({
   useEffect(() => {
     setMountedEditor(undefined);
   }, [fileId]);
+
+  useEffect(() => {
+    onEditorMount?.(editorInstance ?? null);
+    return () => {
+      onEditorMount?.(null);
+    };
+  }, [editorInstance, onEditorMount]);
 
   const handleEditorMount = useCallback(
     (editor: editor.IStandaloneCodeEditor, monaco: Monaco) => {
