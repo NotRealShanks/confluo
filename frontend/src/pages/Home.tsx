@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import AppShell from "../components/AppShell";
 import NewProjectForm from "../components/NewProjectForm";
 import RoleBadge from "../components/RoleBadge";
+import { ProjectMembersBadge } from "../components/ProjectMembersBadge";
 import { formatDate } from "../lib/format";
 import { useProjects } from "../projects/hooks";
 import { useAuth } from "../auth/context";
@@ -292,18 +293,8 @@ export default function Home() {
                       <time dateTime={project.updatedAt}>Updated {formatDate(project.updatedAt)}</time>
                     </div>
 
-                    {/* Liveblocks-Style Collaborator Presence Avatar Stack */}
-                    <div className="flex -space-x-1.5 overflow-hidden" title="Liveblocks multiplayer room presence enabled">
-                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-purple-600 text-[9px] font-bold text-white ring-2 ring-[#121214]">
-                        ST
-                      </span>
-                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[9px] font-bold text-white ring-2 ring-[#121214]">
-                        SC
-                      </span>
-                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-pink-600 text-[9px] font-bold text-white ring-2 ring-[#121214]">
-                        JN
-                      </span>
-                    </div>
+                    {/* Real Project Members Badge (up to 3 + remainder) */}
+                    <ProjectMembersBadge projectId={project.id} />
                   </div>
                 </div>
               </div>

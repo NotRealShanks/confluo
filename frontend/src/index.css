@@ -1901,6 +1901,153 @@ body.is-resizing-panel * {
   background: #27272a;
 }
 
+/* IDE Settings - Profile Section */
+.ide-profile-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 16px;
+  border: 1px solid #27272a;
+  border-radius: 8px;
+  background: #18181b;
+}
+
+.ide-profile-avatar-wrapper {
+  flex-shrink: 0;
+}
+
+.ide-profile-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ide-profile-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ide-profile-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.ide-profile-badge {
+  display: inline-flex;
+  padding: 2px 7px;
+  border: 1px solid #3f3f46;
+  border-radius: 4px;
+  background: #27272a;
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #a1a1aa;
+}
+
+.ide-profile-email {
+  font-size: 12px;
+  color: #a1a1aa;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.ide-profile-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  max-width: 320px;
+}
+
+.ide-profile-input-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ide-profile-input {
+  flex: 1;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #27272a;
+  border-radius: 6px;
+  background: #09090b;
+  color: #f4f4f5;
+  font-size: 13px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.ide-profile-input:focus {
+  outline: none;
+  border-color: #ffffff;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.2);
+}
+
+.ide-profile-save-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #09090b;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+  white-space: nowrap;
+}
+
+.ide-profile-save-btn:hover:not(:disabled) {
+  background: #e4e4e7;
+}
+
+.ide-profile-save-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ide-profile-status {
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.ide-profile-status.is-success {
+  color: #4ade80;
+}
+
+.ide-profile-status.is-error {
+  color: #f87171;
+}
+
+.ide-profile-static-field {
+  display: inline-flex;
+  padding: 6px 12px;
+  border: 1px solid #27272a;
+  border-radius: 6px;
+  background: #09090b;
+  color: #d4d4d8;
+  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.ide-profile-provider-pill {
+  display: inline-flex;
+  padding: 4px 10px;
+  border: 1px solid #3f3f46;
+  border-radius: 12px;
+  background: #18181b;
+  color: #f4f4f5;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
 /* ==========================================================================
    Dark Theme Customizations
    ========================================================================== */

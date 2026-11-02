@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useContext, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   Check,
   Code2,
@@ -10,6 +10,7 @@ import {
   RotateCcw,
   Search,
   Sun,
+  User as UserIcon,
   X,
 } from "lucide-react";
 import { useSettings } from "./useSettings";
@@ -24,8 +25,11 @@ import {
   type ThemePreference,
   type WordWrapPreference,
 } from "./types";
+import { AuthContext } from "../auth/context";
+import { updateProfile } from "../api/auth";
+import UserAvatar from "../components/UserAvatar";
 
-type SettingsCategory = "appearance" | "editor" | "files" | "accessibility";
+type SettingsCategory = "appearance" | "editor" | "profile" | "files" | "accessibility";
 
 interface SettingItemDefinition {
   id: string;
@@ -36,6 +40,13 @@ interface SettingItemDefinition {
 }
 
 const SETTING_ITEMS: SettingItemDefinition[] = [
+  {
+    id: "profile",
+    category: "profile",
+    label: "Profile & Identity",
+    description: "Manage your display name, avatar, and collaborator account information.",
+    keywords: ["profile", "name", "account", "user", "avatar", "email"],
+  },
   {
     id: "theme",
     category: "appearance",
@@ -151,6 +162,39 @@ export function SettingsPanel() {
   const [resetConfirm, setResetConfirm] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const auth = useContext(AuthContext);
+  const user = auth?.user ?? null;
+  const updateUser = auth?.updateUser;
+
+  const [displayName, setDisplayName] = useState(user?.name ?? "");
+  const [prevUserName, setPrevUserName] = useState(user?.name);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileStatus, setProfileStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  if (user?.name !== prevUserName) {
+    setPrevUserName(user?.name);
+    setDisplayName(user?.name ?? "");
+  }
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!displayName.trim() || !user) return;
+    setSavingProfile(true);
+    setProfileStatus(null);
+    try {
+      const updated = await updateProfile(displayName.trim());
+      if (updateUser) {
+        updateUser(updated);
+      }
+      setProfileStatus({ type: "success", message: "Profile updated successfully!" });
+      setTimeout(() => setProfileStatus(null), 3000);
+    } catch {
+      setProfileStatus({ type: "error", message: "Failed to update profile name. Please try again." });
+    } finally {
+      setSavingProfile(false);
+    }
+  };
 
   const searchInputId = useId();
   const themeFieldId = useId();
@@ -304,6 +348,18 @@ export function SettingsPanel() {
             >
               <Code2 size={16} />
               <span>Editor</span>
+            </button>
+
+            <button
+              type="button"
+              className={`ide-settings-nav-item ${activeCategory === "profile" && !searchQuery ? "is-active" : ""}`}
+              onClick={() => {
+                setActiveCategory("profile");
+                setSearchQuery("");
+              }}
+            >
+              <UserIcon size={16} />
+              <span>Profile</span>
             </button>
 
             <button
@@ -720,6 +776,112 @@ export function SettingsPanel() {
                         <option value="selection">Selection</option>
                         <option value="all">All</option>
                       </select>
+                    </div>
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* Profile Section */}
+            {(searchQuery ? matchesFilter("profile") : activeCategory === "profile") && (
+              <section className="ide-settings-section" aria-labelledby="section-profile">
+                <h3 id="section-profile" className="ide-settings-section-title">
+                  <UserIcon size={18} /> Profile & Identity
+                </h3>
+
+                {user ? (
+                  <>
+                    <div className="ide-setting-row ide-setting-row-vertical">
+                      <div className="ide-profile-card">
+                        <div className="ide-profile-avatar-wrapper">
+                          <UserAvatar user={user} className="h-14 w-14 text-base ring-2 ring-white/10" />
+                        </div>
+                        <div className="ide-profile-details">
+                          <div className="ide-profile-header">
+                            <span className="ide-profile-name">{user.name}</span>
+                            <span className="ide-profile-badge">{user.provider || "local"}</span>
+                          </div>
+                          <span className="ide-profile-email">{user.email}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="ide-setting-row">
+                      <div className="ide-setting-info">
+                        <label htmlFor="profile-display-name" className="ide-setting-label">
+                          Display Name
+                        </label>
+                        <p className="ide-setting-description">
+                          Your name shown to collaborators, on active cursors, comments, and in shared projects.
+                        </p>
+                      </div>
+                      <div className="ide-setting-control">
+                        <form onSubmit={handleSaveProfile} className="ide-profile-form">
+                          <div className="ide-profile-input-group">
+                            <input
+                              id="profile-display-name"
+                              type="text"
+                              value={displayName}
+                              onChange={(e) => setDisplayName(e.target.value)}
+                              placeholder="Enter your name"
+                              className="ide-profile-input"
+                              maxLength={60}
+                              required
+                            />
+                            <button
+                              type="submit"
+                              disabled={savingProfile || !displayName.trim() || displayName.trim() === user.name}
+                              className="ide-profile-save-btn"
+                            >
+                              {savingProfile ? "Saving..." : "Save Name"}
+                            </button>
+                          </div>
+                          {profileStatus && (
+                            <span
+                              className={`ide-profile-status ${
+                                profileStatus.type === "success" ? "is-success" : "is-error"
+                              }`}
+                            >
+                              {profileStatus.message}
+                            </span>
+                          )}
+                        </form>
+                      </div>
+                    </div>
+
+                    <div className="ide-setting-row">
+                      <div className="ide-setting-info">
+                        <span className="ide-setting-label">Account Email</span>
+                        <p className="ide-setting-description">
+                          Email address linked to your account.
+                        </p>
+                      </div>
+                      <div className="ide-setting-control">
+                        <span className="ide-profile-static-field">{user.email}</span>
+                      </div>
+                    </div>
+
+                    <div className="ide-setting-row">
+                      <div className="ide-setting-info">
+                        <span className="ide-setting-label">Authentication Method</span>
+                        <p className="ide-setting-description">
+                          Identity provider used to secure and authenticate this session.
+                        </p>
+                      </div>
+                      <div className="ide-setting-control">
+                        <span className="ide-profile-provider-pill">
+                          {user.provider ? user.provider.toUpperCase() : "PASSWORD"}
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="ide-setting-row">
+                    <div className="ide-setting-info">
+                      <span className="ide-setting-label">Guest Session</span>
+                      <p className="ide-setting-description">
+                        You are currently in guest or anonymous preview mode. Sign in to edit your profile, personalize avatar settings, and persist configurations across devices.
+                      </p>
                     </div>
                   </div>
                 )}
