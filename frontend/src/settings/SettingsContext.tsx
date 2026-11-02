@@ -45,9 +45,9 @@ function loadInitialSettings(): IdeSettings {
 
 function getSystemTheme(): ResolvedTheme {
   if (typeof window === "undefined" || !window.matchMedia) {
-    return "light";
+    return "dark";
   }
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
 }
 
 function getSystemReducedMotion(): boolean {

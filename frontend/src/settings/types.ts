@@ -56,7 +56,7 @@ export const FONT_FAMILY_PRESETS = [
 ];
 
 export const DEFAULT_SETTINGS: IdeSettings = {
-  theme: "system",
+  theme: "dark",
   editorTheme: "vs-dark",
   fontSize: 14,
   fontFamily: FONT_FAMILY_PRESETS[0].value,

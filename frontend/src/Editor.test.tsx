@@ -113,8 +113,8 @@ describe("Editor component", () => {
       enabled: true,
       renderCharacters: true,
       side: "right",
-      showSlider: "always",
-      autohide: "none",
+      showSlider: "mouseover",
+      autohide: "mouseover",
       maxColumn: 120,
     });
     expect(capturedProps.options?.lineNumbers).toBe("on");

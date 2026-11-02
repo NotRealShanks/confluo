@@ -2,24 +2,24 @@ import { oauthUrl } from "../api/client";
 import { GitHubIcon, GoogleIcon } from "./icons";
 
 const BUTTON_CLASS =
-  "flex w-full items-center justify-center gap-3 rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-800 hover:bg-gray-50";
+  "flex w-full items-center justify-center gap-2.5 rounded-md border border-[#27272a] bg-[#09090b] px-4 py-2.5 font-mono text-xs font-medium text-[#f4f4f5] transition-colors hover:border-[#3f3f46] hover:bg-[#18181b]";
 
 export default function OAuthButtons() {
   return (
     <>
-      <div className="my-6 flex items-center gap-3 text-xs uppercase text-gray-400">
-        <span className="h-px flex-1 bg-gray-200" />
-        or
-        <span className="h-px flex-1 bg-gray-200" />
+      <div className="my-5 flex items-center gap-3 font-mono text-[10px] uppercase tracking-wider text-[#71717a]">
+        <span className="h-px flex-1 bg-[#27272a]" />
+        <span>or continue with</span>
+        <span className="h-px flex-1 bg-[#27272a]" />
       </div>
-      <div className="space-y-3">
+      <div className="space-y-2.5">
         <a href={oauthUrl("google")} className={BUTTON_CLASS}>
           <GoogleIcon />
-          Continue with Google
+          <span>Continue with Google</span>
         </a>
         <a href={oauthUrl("github")} className={BUTTON_CLASS}>
           <GitHubIcon />
-          Continue with GitHub
+          <span>Continue with GitHub</span>
         </a>
       </div>
     </>

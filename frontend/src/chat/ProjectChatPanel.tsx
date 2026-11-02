@@ -224,19 +224,19 @@ export function ProjectChatPanel({ projectId, onClose }: ProjectChatPanelProps) 
 
   return (
     <div
-      className="ide-chat-panel flex flex-col h-full w-full bg-[#1e1e1e] border-0 overflow-hidden select-text text-[#cccccc]"
+      className="ide-chat-panel flex flex-col h-full w-full bg-[#09090b] border-0 overflow-hidden select-text text-[#f4f4f5]"
       data-testid="project-chat-panel"
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-[#2d2d2d] bg-[#252526] shrink-0">
-        <div className="flex items-center gap-1.5 font-medium text-xs text-[#e1e1e1]">
-          <MessageSquare size={14} className="text-blue-400" />
+      <div className="flex items-center justify-between px-3 py-2 border-b border-[#27272a] bg-[#121214] shrink-0">
+        <div className="flex items-center gap-1.5 font-medium text-xs text-white">
+          <MessageSquare size={14} className="text-zinc-300" />
           <span>Project Communication</span>
         </div>
         <button
           type="button"
           onClick={onClose}
-          className="p-1 rounded text-[#858585] hover:text-[#cccccc] hover:bg-[#333333] transition-colors"
+          className="p-1 rounded text-zinc-400 hover:text-white hover:bg-[#1f1f23] transition-colors"
           title="Close chat panel"
           aria-label="Close chat panel"
         >
@@ -245,7 +245,7 @@ export function ProjectChatPanel({ projectId, onClose }: ProjectChatPanelProps) 
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-[#2d2d2d] bg-[#1e1e1e] shrink-0" role="tablist">
+      <div className="flex border-b border-[#27272a] bg-[#121214] shrink-0" role="tablist">
         <button
           type="button"
           role="tab"
@@ -253,14 +253,14 @@ export function ProjectChatPanel({ projectId, onClose }: ProjectChatPanelProps) 
           onClick={() => setActiveTab("messages")}
           className={`flex-1 py-1.5 px-3 text-xs font-medium border-b-2 flex items-center justify-center gap-1.5 transition-colors ${
             activeTab === "messages"
-              ? "border-blue-500 text-white bg-[#252526]"
-              : "border-transparent text-[#858585] hover:text-[#cccccc] hover:bg-[#252526]"
+              ? "border-white text-white bg-[#18181b]"
+              : "border-transparent text-zinc-400 hover:text-white hover:bg-[#18181b]"
           }`}
         >
           <MessageSquare size={13} />
           <span>Messages</span>
           {messages.length > 0 && (
-            <span className="text-[10px] bg-[#333333] px-1.5 py-0.2 rounded-full text-[#aaa]">
+            <span className="text-[10px] bg-[#27272a] border border-[#3f3f46] px-1.5 py-0.2 rounded-full text-zinc-300">
               {messages.length}
             </span>
           )}
@@ -272,13 +272,13 @@ export function ProjectChatPanel({ projectId, onClose }: ProjectChatPanelProps) 
           onClick={() => setActiveTab("activity")}
           className={`flex-1 py-1.5 px-3 text-xs font-medium border-b-2 flex items-center justify-center gap-1.5 transition-colors ${
             activeTab === "activity"
-              ? "border-blue-500 text-white bg-[#252526]"
-              : "border-transparent text-[#858585] hover:text-[#cccccc] hover:bg-[#252526]"
+              ? "border-white text-white bg-[#18181b]"
+              : "border-transparent text-zinc-400 hover:text-white hover:bg-[#18181b]"
           }`}
         >
           <Activity size={13} />
           <span>Activity</span>
-          <span className="text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-800 px-1.5 py-0.2 rounded-full">
+          <span className="text-[10px] bg-[#18181b] text-white border border-[#27272a] px-1.5 py-0.2 rounded-full font-mono">
             {onlineMembers.length} online
           </span>
         </button>
@@ -296,7 +296,7 @@ export function ProjectChatPanel({ projectId, onClose }: ProjectChatPanelProps) 
       {activeTab === "messages" && (
         <div className="flex-1 flex flex-col min-h-0" role="tabpanel">
           {/* Messages list */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-3">
+          <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-[#09090b]">
             {hasMore && (
               <div className="flex justify-center pb-1">
                 <button
@@ -311,7 +311,7 @@ export function ProjectChatPanel({ projectId, onClose }: ProjectChatPanelProps) 
             )}
 
             {loading && (
-              <div className="text-center py-6 text-xs text-[#858585]">
+              <div className="text-center py-6 text-xs text-zinc-500">
                 Loading conversation…
               </div>
             )}
@@ -323,9 +323,9 @@ export function ProjectChatPanel({ projectId, onClose }: ProjectChatPanelProps) 
             )}
 
             {!loading && !error && messages.length === 0 && (
-              <div className="text-center py-12 text-xs text-[#858585] space-y-1">
+              <div className="text-center py-12 text-xs text-zinc-500 space-y-1">
                 <p>No messages yet.</p>
-                <p className="text-[11px] text-[#666666]">Send a message to start collaborating.</p>
+                <p className="text-[11px] text-zinc-600">Send a message to start collaborating.</p>
               </div>
             )}
 
@@ -341,14 +341,14 @@ export function ProjectChatPanel({ projectId, onClose }: ProjectChatPanelProps) 
                 {/* Content */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline gap-1.5">
-                    <span className="font-semibold text-[#e1e1e1] truncate">
+                    <span className="font-semibold text-white truncate">
                       {msg.senderName}
                     </span>
-                    <span className="text-[10px] text-[#858585] shrink-0">
+                    <span className="text-[10px] text-zinc-500 shrink-0 font-mono">
                       {formatTime(msg.createdAt)}
                     </span>
                   </div>
-                  <div className="mt-0.5 text-[#cccccc] break-words whitespace-pre-wrap leading-relaxed">
+                  <div className="mt-0.5 text-zinc-200 break-words whitespace-pre-wrap leading-relaxed">
                     {msg.message}
                   </div>
                 </div>
@@ -359,14 +359,14 @@ export function ProjectChatPanel({ projectId, onClose }: ProjectChatPanelProps) 
 
           {/* Send Error */}
           {sendError && (
-            <div className="px-3 py-1 text-[11px] text-red-400 bg-[#331111] border-t border-[#552222]">
+            <div className="px-3 py-1 text-[11px] text-red-400 bg-[#2d1212] border-t border-red-900/50">
               {sendError}
             </div>
           )}
 
           {/* Input Area */}
-          <div className="p-2 border-t border-[#2d2d2d] bg-[#252526] shrink-0">
-            <div className="flex items-end gap-1.5 bg-[#1e1e1e] border border-[#3c3c3c] rounded px-2 py-1.5 focus-within:border-blue-500">
+          <div className="p-2 border-t border-[#27272a] bg-[#121214] shrink-0">
+            <div className="flex items-end gap-1.5 bg-[#09090b] border border-[#27272a] rounded px-2.5 py-1.5 focus-within:border-white transition-colors">
               <textarea
                 ref={textareaRef}
                 value={inputText}
@@ -374,7 +374,7 @@ export function ProjectChatPanel({ projectId, onClose }: ProjectChatPanelProps) 
                 onKeyDown={handleKeyDown}
                 disabled={sending || isAccessRevoked}
                 placeholder={isAccessRevoked ? "Access revoked" : "Type message… (Enter to send, Shift+Enter for newline)"}
-                className="flex-1 bg-transparent border-0 text-xs text-[#cccccc] placeholder-[#666666] focus:outline-none resize-none max-h-24 min-h-[36px]"
+                className="flex-1 bg-transparent border-0 text-xs text-white placeholder-zinc-500 focus:outline-none resize-none max-h-24 min-h-[36px]"
                 rows={2}
                 maxLength={2000}
                 aria-label="Chat message input"
@@ -383,7 +383,7 @@ export function ProjectChatPanel({ projectId, onClose }: ProjectChatPanelProps) 
                 type="button"
                 onClick={handleSend}
                 disabled={!inputText.trim() || sending || isAccessRevoked}
-                className="p-1.5 rounded text-white bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:hover:bg-blue-600 transition-colors shrink-0"
+                className="p-1.5 rounded text-black bg-white hover:bg-zinc-200 disabled:opacity-30 disabled:hover:bg-white transition-colors shrink-0"
                 title="Send message"
                 aria-label="Send message"
               >

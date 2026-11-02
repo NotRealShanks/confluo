@@ -1,5 +1,5 @@
 export const PANEL_MIN_HEIGHT = 80;
-export const PANEL_DEFAULT_HEIGHT = 180;
+export const PANEL_DEFAULT_HEIGHT = 260;
 export const PANEL_STEP = 16;
 export const EDITOR_MIN_HEIGHT = 120;
 export const PANEL_MAX_RATIO = 0.7;

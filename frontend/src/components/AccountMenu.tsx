@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { LogOut, Settings, UserRound } from "lucide-react";
+import { LogOut, Settings, UserRound, FolderKanban } from "lucide-react";
 import { useNavigate } from "react-router";
 import { useAuth } from "../auth/context";
 import UserAvatar from "./UserAvatar";
@@ -15,15 +15,27 @@ export default function AccountMenu({ compact = false }: { compact?: boolean }) 
     const closeIfOutside = (event: PointerEvent) => {
       if (event.target instanceof Node && !root.current?.contains(event.target)) setOpen(false);
     };
-    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false); };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
     document.addEventListener("pointerdown", closeIfOutside);
     document.addEventListener("keydown", closeOnEscape);
-    return () => { document.removeEventListener("pointerdown", closeIfOutside); document.removeEventListener("keydown", closeOnEscape); };
+    return () => {
+      document.removeEventListener("pointerdown", closeIfOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
   }, [open]);
 
   if (!user) return null;
-  const go = (path: string) => { setOpen(false); navigate(path); };
-  const leave = () => { setOpen(false); signOut(); navigate("/login", { replace: true }); };
+  const go = (path: string) => {
+    setOpen(false);
+    navigate(path);
+  };
+  const leave = () => {
+    setOpen(false);
+    signOut();
+    navigate("/login", { replace: true });
+  };
   const moveFocus = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (!open || !["ArrowDown", "ArrowUp"].includes(event.key)) return;
     event.preventDefault();
@@ -32,23 +44,85 @@ export default function AccountMenu({ compact = false }: { compact?: boolean }) 
     items[(index + (event.key === "ArrowDown" ? 1 : items.length - 1)) % items.length]?.focus();
   };
 
-  return <div ref={root} className="relative" onKeyDown={moveFocus}>
-    <button type="button" aria-haspopup="menu" aria-expanded={open} aria-label="Open account menu" onClick={() => setOpen((value) => !value)}
-      className={compact ? "ide-account-trigger" : "flex items-center gap-2 rounded-lg px-2 py-1 text-sm text-gray-700 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"}>
-      <UserAvatar user={user} className={compact ? "h-7 w-7" : "h-7 w-7"} />
-      <span className="max-w-36 truncate">{user.name}</span>
-    </button>
-    {open && <div role="menu" aria-label="Account menu" className="absolute right-0 z-50 mt-2 w-64 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg">
-      <div className="flex items-center gap-3 px-3 py-3">
-        <UserAvatar user={user} className="h-9 w-9" />
-        <div className="min-w-0"><p className="truncate text-sm font-semibold text-gray-900">{user.name}</p><p className="truncate text-xs text-gray-500">{user.email}</p></div>
-      </div>
-      <div className="my-1 border-t border-gray-100" />
-      <button data-account-item type="button" role="menuitem" onClick={() => go("/profile")} className="account-menu-item"><UserRound size={15} />Your profile</button>
-      <button data-account-item type="button" role="menuitem" onClick={() => go("/settings/profile")} className="account-menu-item"><Settings size={15} />Account settings</button>
-      <button data-account-item type="button" role="menuitem" onClick={() => go("/")} className="account-menu-item">Projects</button>
-      <div className="my-1 border-t border-gray-100" />
-      <button data-account-item type="button" role="menuitem" onClick={leave} className="account-menu-item text-red-700"><LogOut size={15} />Sign out</button>
-    </div>}
-  </div>;
+  return (
+    <div ref={root} className="relative" onKeyDown={moveFocus}>
+      <button
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Open account menu"
+        onClick={() => setOpen((value) => !value)}
+        className={
+          compact
+            ? "ide-account-trigger"
+            : "flex items-center gap-2 rounded-md border border-[#27272a] bg-[#09090b] px-2.5 py-1 font-mono text-xs text-[#f4f4f5] hover:border-[#3f3f46] hover:bg-[#121214] focus-visible:outline-2 focus-visible:outline-[#ffffff]"
+        }
+      >
+        <UserAvatar user={user} className="h-6 w-6" />
+        <span className="max-w-36 truncate">{user.name}</span>
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          aria-label="Account menu"
+          className="absolute right-0 z-50 mt-2 w-64 overflow-hidden rounded-xl border border-[#27272a] bg-[#121214] py-1 shadow-2xl font-mono text-xs text-[#f4f4f5]"
+        >
+          <div className="flex items-center gap-3 px-3.5 py-3 border-b border-[#27272a]">
+            <UserAvatar user={user} className="h-8 w-8" />
+            <div className="min-w-0">
+              <p className="truncate font-semibold text-[#f4f4f5]">{user.name}</p>
+              <p className="truncate text-[11px] text-[#a1a1aa]">{user.email}</p>
+            </div>
+          </div>
+
+          <div className="py-1">
+            <button
+              data-account-item
+              type="button"
+              role="menuitem"
+              onClick={() => go("/profile")}
+              className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left hover:bg-[#18181b] transition-colors"
+            >
+              <UserRound size={14} className="text-[#d4d4d8]" />
+              <span>Your profile</span>
+            </button>
+            <button
+              data-account-item
+              type="button"
+              role="menuitem"
+              onClick={() => go("/settings/profile")}
+              className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left hover:bg-[#18181b] transition-colors"
+            >
+              <Settings size={14} className="text-[#d4d4d8]" />
+              <span>Account settings</span>
+            </button>
+            <button
+              data-account-item
+              type="button"
+              role="menuitem"
+              onClick={() => go("/dashboard")}
+              className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left hover:bg-[#18181b] transition-colors"
+            >
+              <FolderKanban size={14} className="text-white" />
+              <span>Projects Dashboard</span>
+            </button>
+          </div>
+
+          <div className="border-t border-[#27272a] py-1">
+            <button
+              data-account-item
+              type="button"
+              role="menuitem"
+              onClick={leave}
+              className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-[#FF6B6B] hover:bg-[#2A1515] transition-colors"
+            >
+              <LogOut size={14} />
+              <span>Sign out</span>
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }

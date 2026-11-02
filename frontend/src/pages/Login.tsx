@@ -5,6 +5,7 @@ import { formValue, useAuthSubmit } from "../auth/useAuthSubmit";
 import AuthLayout from "../components/AuthLayout";
 import OAuthButtons from "../components/OAuthButtons";
 import TextField from "../components/TextField";
+import { AlertCircle, ArrowRight } from "lucide-react";
 
 // Codes come from OAuth2LoginHandler on the backend
 const ERROR_MESSAGES: Record<string, string> = {
@@ -33,31 +34,64 @@ export default function Login() {
   const alertMessage = formError ?? oauthError;
 
   return (
-    <AuthLayout title="Sign in to Confluo">
+    <AuthLayout
+      title="Sign in to Confluo"
+      subtitle="Access your collaborative workspaces and cloud sandboxes."
+    >
       {alertMessage && (
-        <p role="alert" className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
-          {alertMessage}
-        </p>
+        <div role="alert" className="mb-5 flex items-start gap-2.5 rounded-md border border-[#FF6B6B]/40 bg-[#2A1515] p-3 font-mono text-xs text-[#FF6B6B]">
+          <AlertCircle size={15} className="shrink-0 mt-0.5" />
+          <span>{alertMessage}</span>
+        </div>
       )}
 
-      <form onSubmit={submit} className="mt-6 space-y-4">
-        <TextField label="Email" name="email" type="email" autoComplete="email" maxLength={254} error={fieldErrors.email} />
-        <TextField label="Password" name="password" type="password" autoComplete="current-password" maxLength={72} error={fieldErrors.password} />
+      <form onSubmit={submit} className="space-y-4">
+        <TextField
+          label="Email address"
+          name="email"
+          type="email"
+          autoComplete="email"
+          placeholder="engineer@team.dev"
+          maxLength={254}
+          error={fieldErrors.email}
+        />
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <span className="font-mono text-xs font-medium text-[#f4f4f5]">Password</span>
+            <Link
+              to="/forgot-password"
+              className="font-mono text-[11px] text-[#d4d4d8] hover:text-white transition-colors"
+            >
+              Forgot password?
+            </Link>
+          </div>
+          <TextField
+            label=""
+            name="password"
+            type="password"
+            autoComplete="current-password"
+            placeholder="••••••••"
+            maxLength={72}
+            error={fieldErrors.password}
+          />
+        </div>
+
         <button
           type="submit"
           disabled={pending}
-          className="w-full rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-60"
+          className="mt-2 flex w-full items-center justify-center gap-2 rounded-md border border-white bg-white text-black py-2.5 font-mono text-xs font-semibold text-[#09090b] transition-all hover:bg-zinc-200 hover:shadow-[0_0_15px_rgba(255, 255, 255, )] disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          {pending ? "Signing in…" : "Sign in"}
+          <span>{pending ? "Authenticating…" : "Sign in to workspace"}</span>
+          <ArrowRight size={13} />
         </button>
       </form>
 
       <OAuthButtons />
 
-      <p className="mt-6 text-center text-sm text-gray-600">
-        No account?{" "}
-        <Link to="/signup" className="text-blue-600 underline">
-          Sign up
+      <p className="mt-6 text-center font-mono text-xs text-[#a1a1aa]">
+        Don't have an account?{" "}
+        <Link to="/signup" className="text-white underline font-medium hover:text-[#a5e656]">
+          Create account
         </Link>
       </p>
     </AuthLayout>

@@ -360,12 +360,12 @@ function BottomPanel({
           {tab === "terminal" && doc && view && projectId ? (
             <TerminalPanel projectId={projectId} projectName={projectName} doc={doc} view={view} />
           ) : tab === "output" ? (
-            <div className="flex flex-col h-full w-full bg-[#1e1e1e] text-[#d4d4d4] font-mono text-xs overflow-hidden">
-              <div className="flex items-center justify-between px-3 py-1 bg-[#252526] border-b border-[#2d2d2d] shrink-0 text-xs">
+            <div className="flex flex-col h-full w-full bg-[#09090b] text-[#f4f4f5] font-mono text-xs overflow-hidden">
+              <div className="flex items-center justify-between px-3 py-1.5 bg-[#121214] border-b border-[#27272a] shrink-0 text-xs">
                 <div className="flex items-center gap-2">
-                  <span className="text-[#858585]">Execution Console</span>
+                  <span className="text-zinc-400">Execution Console</span>
                   {running && (
-                    <span className="text-[11px] text-blue-400 bg-blue-950/60 border border-blue-800 px-1.5 py-0.5 rounded animate-pulse">
+                    <span className="text-[10px] text-black bg-white font-semibold px-2 py-0.5 rounded shadow-sm animate-pulse">
                       Running…
                     </span>
                   )}
@@ -374,7 +374,7 @@ function BottomPanel({
                   <button
                     type="button"
                     onClick={onClearOutput}
-                    className="p-1 rounded text-[#858585] hover:text-white hover:bg-[#333] transition-colors"
+                    className="p-1 rounded text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
                     title="Clear Output"
                     aria-label="Clear Output"
                   >
@@ -382,7 +382,7 @@ function BottomPanel({
                   </button>
                 )}
               </div>
-              <pre className="flex-1 p-3 overflow-auto font-mono text-xs text-[#cccccc] leading-relaxed whitespace-pre-wrap select-text m-0">
+              <pre className="flex-1 p-3 overflow-auto font-mono text-xs text-[#f4f4f5] leading-relaxed whitespace-pre-wrap select-text m-0">
                 {output || "Run a supported file to see output here."}
               </pre>
             </div>

@@ -816,33 +816,33 @@ export function TerminalPanel({ projectId, projectName = "project", doc, view }:
 
   return (
     <div
-      className="ide-terminal-container flex flex-col h-full w-full bg-[#18181b] text-[#e4e4e7] font-mono text-xs overflow-hidden select-text"
+      className="ide-terminal-container flex flex-col h-full w-full bg-[#09090b] text-[#f4f4f5] font-mono text-xs overflow-hidden select-text"
       onClick={() => inputRef.current?.focus()}
     >
-      {/* Sub-bar for Multi-Terminals */}
-      <div className="flex items-center justify-between px-2 py-1 bg-[#202023] border-b border-[#2d2d30] shrink-0">
-        <div className="flex items-center gap-1 overflow-x-auto">
+      {/* Sub-bar for Multi-Terminals - VS Code Style */}
+      <div className="flex items-center justify-between px-3 py-1.5 bg-[#121214] border-b border-[#27272a] shrink-0">
+        <div className="flex items-center gap-1.5 overflow-x-auto">
           {sessions.map((s) => (
             <button
               key={s.id}
               type="button"
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs transition-colors ${
                 s.id === activeSessionId
-                  ? "bg-[#2d2d30] text-white font-medium shadow-sm"
-                  : "text-[#a1a1aa] hover:text-white hover:bg-[#27272a]"
+                  ? "bg-[#1f1f23] text-white font-medium border-b-2 border-white shadow-sm"
+                  : "text-zinc-400 hover:text-zinc-200 hover:bg-[#18181b]"
               }`}
               onClick={(e) => {
                 e.stopPropagation();
                 setActiveSessionId(s.id);
               }}
             >
-              <TerminalIcon size={12} className="text-blue-400" />
+              <TerminalIcon size={12} className={s.id === activeSessionId ? "text-white" : "text-zinc-400"} />
               <span>{s.name}</span>
             </button>
           ))}
           <button
             type="button"
-            className="p-1 rounded text-[#a1a1aa] hover:text-white hover:bg-[#27272a] transition-colors"
+            className="p-1 rounded text-zinc-400 hover:text-white hover:bg-[#18181b] transition-colors"
             onClick={(e) => {
               e.stopPropagation();
               addSession();
@@ -857,7 +857,7 @@ export function TerminalPanel({ projectId, projectName = "project", doc, view }:
         <div className="flex items-center gap-1">
           <button
             type="button"
-            className="p-1 rounded text-[#a1a1aa] hover:text-white hover:bg-[#27272a] transition-colors"
+            className="p-1 rounded text-zinc-400 hover:text-white hover:bg-[#18181b] transition-colors"
             onClick={(e) => {
               e.stopPropagation();
               clearCurrentTerminal();
@@ -869,7 +869,7 @@ export function TerminalPanel({ projectId, projectName = "project", doc, view }:
           </button>
           <button
             type="button"
-            className="p-1 rounded text-[#a1a1aa] hover:text-red-400 hover:bg-[#27272a] transition-colors"
+            className="p-1 rounded text-zinc-400 hover:text-red-400 hover:bg-[#18181b] transition-colors"
             onClick={(e) => {
               e.stopPropagation();
               killCurrentSession();
@@ -883,30 +883,30 @@ export function TerminalPanel({ projectId, projectName = "project", doc, view }:
       </div>
 
       {/* Terminal Output Stream */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-1">
+      <div className="flex-1 overflow-y-auto p-3.5 space-y-1 bg-[#09090b]">
         {activeSession?.lines.map((line) => (
           <div key={line.id} className="leading-relaxed break-words whitespace-pre-wrap">
             {line.type === "input" && (
-              <div className="flex items-start gap-1 text-[#60a5fa]">
-                <span className="text-[#34d399] shrink-0">{line.prompt || currentPrompt}</span>
+              <div className="flex items-start gap-1.5 text-zinc-300">
+                <span className="text-zinc-100 shrink-0 font-medium">{line.prompt || currentPrompt}</span>
                 <span className="text-white font-medium">{line.text}</span>
               </div>
             )}
             {line.type === "output" && (
-              <div className="text-[#f4f4f5]">{line.text}</div>
+              <div className="text-zinc-200">{line.text}</div>
             )}
             {line.type === "error" && (
-              <div className="text-[#f87171]">{line.text}</div>
+              <div className="text-red-400">{line.text}</div>
             )}
             {line.type === "system" && (
-              <div className="text-[#9ca3af] italic">{line.text}</div>
+              <div className="text-zinc-500 italic">{line.text}</div>
             )}
           </div>
         ))}
 
         {/* Active Command Input Line */}
-        <div className="flex items-center gap-1.5 pt-1">
-          <span className="text-[#34d399] font-medium shrink-0">{currentPrompt}</span>
+        <div className="flex items-center gap-1.5 pt-1.5">
+          <span className="text-zinc-100 font-medium shrink-0">{currentPrompt}</span>
           <input
             ref={inputRef}
             type="text"
@@ -919,7 +919,7 @@ export function TerminalPanel({ projectId, projectName = "project", doc, view }:
                 ? "Executing in cloud sandbox…"
                 : "Type a command (e.g. g++ hello.cpp, ./a.out, ls, cd, help)..."
             }
-            className="flex-1 bg-transparent border-0 text-[#f4f4f5] placeholder-[#71717a] focus:outline-none p-0 text-xs font-mono"
+            className="flex-1 bg-transparent border-0 text-white placeholder-zinc-500 focus:outline-none p-0 text-xs font-mono"
             autoFocus
             aria-label="Terminal command prompt"
           />

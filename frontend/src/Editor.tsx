@@ -13,6 +13,7 @@ import { getFileText, snapshot } from "./workspace/ops";
 import { languageForFilename } from "./workspace/language";
 import { downloadAsset } from "./api/assets";
 import { useSettings, registerMonacoThemes } from "./settings";
+import { registerMonacoCompletions } from "./workspace/monacoCompletions";
 import { Code2 } from "lucide-react";
 import { useCodeComments, EditorGutterComments } from "./comments";
 
@@ -298,7 +299,10 @@ export default function Editor({
             key={fileId}
             height="100%"
             theme={monacoTheme}
-            beforeMount={registerMonacoThemes}
+            beforeMount={(monaco) => {
+              registerMonacoThemes(monaco);
+              registerMonacoCompletions(monaco);
+            }}
             language={language}
             defaultLanguage={language}
             defaultValue=""
@@ -317,9 +321,34 @@ export default function Editor({
                 enabled: settings.minimap,
                 renderCharacters: true,
                 side: "right",
-                showSlider: "always",
-                autohide: "none",
+                showSlider: "mouseover",
+                autohide: "mouseover",
                 maxColumn: 120,
+              },
+              quickSuggestions: {
+                other: true,
+                comments: false,
+                strings: false,
+              },
+              quickSuggestionsDelay: 10,
+              suggestOnTriggerCharacters: true,
+              acceptSuggestionOnEnter: "on",
+              tabCompletion: "on",
+              wordBasedSuggestions: "allDocuments",
+              suggest: {
+                localityBonus: true,
+                shareSuggestSelections: true,
+                showWords: true,
+                showKeywords: true,
+                showClasses: true,
+                showFunctions: true,
+                showVariables: true,
+                showMethods: true,
+                showSnippets: true,
+                preview: true,
+              },
+              parameterHints: {
+                enabled: true,
               },
               cursorBlinking: settings.cursorBlinking,
               bracketPairColorization: { enabled: settings.bracketPairColorization },
