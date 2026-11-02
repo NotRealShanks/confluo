@@ -66,7 +66,9 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource(
             @Value("${app.frontend-url:http://localhost:5173}") String frontendUrl) {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of(frontendUrl));
+        List<String> origins = List.of(frontendUrl.split("\\s*,\\s*"));
+        config.setAllowedOriginPatterns(origins.contains("*") ? List.of("*") : origins);
+        config.setAllowCredentials(true);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
 
