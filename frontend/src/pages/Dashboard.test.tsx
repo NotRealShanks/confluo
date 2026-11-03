@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { MemoryRouter } from "react-router";
 import Home from "./Home";
 import NotFoundPage from "./NotFoundPage";
 import { AuthContext } from "../auth/context";
 import * as hooks from "../projects/hooks";
+import * as projectsApi from "../api/projects";
 import type { Project, User } from "../api/types";
 
 const mockUser: User = {
@@ -59,6 +60,7 @@ describe("Dashboard & Navigation (Stage 4)", () => {
       state: { status: "ready", data: mockProjects },
       reload: vi.fn(),
       addProject: vi.fn(),
+      removeProject: vi.fn(),
     });
 
     render(
@@ -70,7 +72,7 @@ describe("Dashboard & Navigation (Stage 4)", () => {
     );
 
     expect(screen.getByText(/Welcome back, Marcus/i)).toBeDefined();
-    expect(screen.getByText(/3 total projects \(1 owned, 2 shared\)/i)).toBeDefined();
+    expect(screen.getByText(/3 total projects/i)).toBeDefined();
     expect(screen.getByText("distributed-raft-consensus")).toBeDefined();
     expect(screen.getByText("compiler-frontend-llvm")).toBeDefined();
     expect(screen.getByText("kernel-ebpf-tracer")).toBeDefined();
@@ -81,6 +83,7 @@ describe("Dashboard & Navigation (Stage 4)", () => {
       state: { status: "ready", data: mockProjects },
       reload: vi.fn(),
       addProject: vi.fn(),
+      removeProject: vi.fn(),
     });
 
     render(
@@ -113,6 +116,7 @@ describe("Dashboard & Navigation (Stage 4)", () => {
       state: { status: "ready", data: mockProjects },
       reload: vi.fn(),
       addProject: vi.fn(),
+      removeProject: vi.fn(),
     });
 
     render(
@@ -138,11 +142,12 @@ describe("Dashboard & Navigation (Stage 4)", () => {
     expect(screen.getByText("compiler-frontend-llvm")).toBeDefined();
   });
 
-  it("toggles the create workspace drawer", () => {
+  it("provides link to create project wizard on Create Workspace action", () => {
     vi.spyOn(hooks, "useProjects").mockReturnValue({
       state: { status: "ready", data: mockProjects },
       reload: vi.fn(),
       addProject: vi.fn(),
+      removeProject: vi.fn(),
     });
 
     render(
@@ -154,10 +159,41 @@ describe("Dashboard & Navigation (Stage 4)", () => {
     );
 
     const toggleBtn = screen.getByRole("button", { name: /Create Workspace/i });
-    fireEvent.click(toggleBtn);
+    expect(toggleBtn).toBeDefined();
+    expect(toggleBtn.getAttribute("href")).toBe("/projects/new");
+  });
 
-    expect(screen.getByText(/Initialize New Project Workspace/i)).toBeDefined();
-    expect(screen.getByRole("button", { name: /Close Drawer/i })).toBeDefined();
+  it("opens delete confirmation modal and triggers deleteProject when confirmed", async () => {
+    const removeProjectMock = vi.fn();
+    vi.spyOn(hooks, "useProjects").mockReturnValue({
+      state: { status: "ready", data: mockProjects },
+      reload: vi.fn(),
+      addProject: vi.fn(),
+      removeProject: removeProjectMock,
+    });
+    const deleteProjectSpy = vi.spyOn(projectsApi, "deleteProject").mockResolvedValue(undefined);
+
+    render(
+      <MemoryRouter>
+        <AuthContext.Provider value={mockAuthValue}>
+          <Home />
+        </AuthContext.Provider>
+      </MemoryRouter>
+    );
+
+    const deleteBtn = screen.getByRole("button", { name: "Delete distributed-raft-consensus" });
+    fireEvent.click(deleteBtn);
+
+    expect(screen.getByText(/Delete Project Workspace/i)).toBeDefined();
+    expect(screen.getByText(/Are you sure you want to permanently delete/i)).toBeDefined();
+
+    const confirmBtn = screen.getByRole("button", { name: "Delete Project" });
+    fireEvent.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(deleteProjectSpy).toHaveBeenCalledWith("proj-1");
+      expect(removeProjectMock).toHaveBeenCalledWith("proj-1");
+    });
   });
 
   it("renders 404 NotFoundPage with navigation actions", () => {
@@ -173,4 +209,3 @@ describe("Dashboard & Navigation (Stage 4)", () => {
     expect(screen.getByRole("link", { name: /Back to Homepage/i })).toBeDefined();
   });
 });
-

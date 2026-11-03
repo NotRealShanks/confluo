@@ -1,4 +1,4 @@
-import { Route, Routes } from "react-router";
+﻿import { Route, Routes } from "react-router";
 import RequireAuth from "./components/RequireAuth";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
@@ -8,6 +8,7 @@ import ResetPassword from "./pages/ResetPassword";
 import EmailVerificationNotice from "./pages/EmailVerificationNotice";
 import OAuthCallback from "./pages/OAuthCallback";
 import ProjectPage from "./pages/ProjectPage";
+import CreateProjectPage from "./pages/CreateProjectPage";
 import GuestProjectPage from "./pages/GuestProjectPage";
 import ProfilePage from "./pages/ProfilePage";
 import ProfileSettingsPage from "./pages/ProfileSettingsPage";
@@ -49,6 +50,7 @@ export default function App() {
       <Route path="/share/:token" element={<GuestProjectPage />} />
       <Route element={<RequireAuth />}>
         <Route path="/dashboard" element={<Home />} />
+        <Route path="projects/new" element={<CreateProjectPage />} />
         <Route path="projects/:id" element={<ProjectPage />} />
         <Route path="profile" element={<ProfilePage />} />
         <Route path="settings/profile" element={<ProfileSettingsPage />} />

@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useReducer, useRef, useState } from "react";
-import { Link, useParams } from "react-router";
+﻿import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { Link, useParams, useNavigate } from "react-router";
 import * as Y from "yjs";
 import { getYjsProviderForRoom } from "@liveblocks/yjs";
 import {
@@ -21,6 +21,7 @@ import {
   Settings,
   Share2,
   Terminal,
+  Trash2,
   X,
 } from "lucide-react";
 import { ApiError } from "../api/client";
@@ -37,7 +38,9 @@ import { fileIcon } from "../workspace/fileIcon";
 import ShareDialog from "../components/ShareDialog";
 import AccountMenu from "../components/AccountMenu";
 import { useProject } from "../projects/hooks";
+import { deleteProject } from "../api/projects";
 import { ensureWorkspaceIfAllowed, snapshot } from "../workspace/ops";
+import { initializeWorkspaceFromTemplate } from "../templates";
 import WorkspaceExplorer from "../workspace/WorkspaceExplorer";
 import { useOthers, useRoom, useUpdateMyPresence } from "@liveblocks/react/suspense";
 import { FilePresenceBadge } from "../collaborative/FilePresenceBadge";
@@ -402,6 +405,8 @@ function BottomPanel({
 export function CollaborativeWorkspace({
   projectId,
   projectName,
+  templateId,
+  templateConfig,
   canInitialize = true,
   canRun = true,
   isGuest = false,
@@ -410,6 +415,8 @@ export function CollaborativeWorkspace({
 }: {
   projectId: string;
   projectName?: string;
+  templateId?: string | null;
+  templateConfig?: string | null;
   canInitialize?: boolean;
   canRun?: boolean;
   isGuest?: boolean;
@@ -561,16 +568,34 @@ export function CollaborativeWorkspace({
     previewResizeCleanupRef.current?.();
   }, []);
 
+  const hasInitializedRef = useRef(false);
+
   useEffect(() => {
     const onSynced = (synced: boolean) => {
       if (!synced) return;
-      ensureWorkspaceIfAllowed(doc, canInitialize);
+      if (!hasInitializedRef.current) {
+        hasInitializedRef.current = true;
+        if (templateId) {
+          const result = initializeWorkspaceFromTemplate(doc, canInitialize, templateId, templateConfig);
+          if (result.entrypointFileId) {
+            dispatchTabs({ type: "select", fileId: result.entrypointFileId });
+          }
+        } else {
+          ensureWorkspaceIfAllowed(doc, canInitialize);
+        }
+        const snap = snapshot(doc);
+        const files = Array.from(snap.nodes.values()).filter((n) => n.type === "file");
+        if (files.length > 0) {
+          const preferred = files.find((f) => /App\.(tsx|jsx|vue)|main\.(ts|js|py|rs|go)|index\.(html|js|ts)|Application\.java/.test(f.name)) || files[0];
+          dispatchTabs({ type: "select", fileId: preferred.id });
+        }
+      }
       setReady(true);
     };
     provider.on("synced", onSynced);
     if (provider.synced) onSynced(true);
     return () => provider.off("synced", onSynced);
-  }, [canInitialize, doc, provider]);
+  }, [canInitialize, doc, provider, templateId, templateConfig]);
 
   useEffect(() => {
     const handleDocUpdate = () => {
@@ -1137,6 +1162,23 @@ function ProjectHeader({
   onNavigateToComment?: (fileId: string, lineNumber: number) => void;
 }) {
   const [shareOpen, setShareOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const navigate = useNavigate();
+
+  const handleDeleteProject = async () => {
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteProject(project.id);
+      navigate("/dashboard");
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Failed to delete project.");
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   return (
     <>
@@ -1151,10 +1193,86 @@ function ProjectHeader({
         <div className="ide-presence"><Presence /></div>
         <InboxNotificationMenu onNavigateToComment={onNavigateToComment} />
         <RoleBadge role={project.role} />
-        {project.role === "OWNER" && <button type="button" className="ide-share-button" onClick={() => setShareOpen(true)}><Share2 size={15} /> Share</button>}
+        {project.role === "OWNER" && (
+          <>
+            <button type="button" className="ide-share-button" onClick={() => setShareOpen(true)}>
+              <Share2 size={15} /> Share
+            </button>
+            <button
+              type="button"
+              className="ide-share-button"
+              style={{ color: "#f87171", borderColor: "rgba(239, 68, 68, 0.4)" }}
+              title="Delete project workspace"
+              onClick={() => setDeleteOpen(true)}
+            >
+              <Trash2 size={15} /> Delete
+            </button>
+          </>
+        )}
         <AccountMenu compact />
       </header>
       {shareOpen && <ShareDialog projectId={project.id} projectRole={project.role} onClose={() => setShareOpen(false)} />}
+      {deleteOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-150"
+          onClick={() => {
+            if (!deleting) setDeleteOpen(false);
+          }}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-zinc-800 bg-[#121214] p-6 shadow-2xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 text-red-400">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-950/60 border border-red-800/60">
+                <Trash2 size={20} />
+              </div>
+              <div>
+                <h3 className="font-display text-sm font-semibold text-white">
+                  Delete Project Workspace
+                </h3>
+                <p className="font-mono text-[11px] text-zinc-400">
+                  This action is permanent and cannot be undone
+                </p>
+              </div>
+            </div>
+
+            <p className="font-mono text-xs text-zinc-300 leading-relaxed">
+              Are you sure you want to permanently delete{" "}
+              <strong className="text-white">"{project.title}"</strong>? All
+              collaborative files, CRDT document history, and guest share links will be removed.
+            </p>
+
+            {deleteError && (
+              <div className="p-3 rounded-lg bg-red-950/40 border border-red-800/50 text-red-300 font-mono text-xs">
+                {deleteError}
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteOpen(false);
+                  setDeleteError(null);
+                }}
+                disabled={deleting}
+                className="rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2 font-mono text-xs text-white hover:bg-zinc-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteProject}
+                disabled={deleting}
+                className="rounded-lg border border-red-600 bg-red-600 px-4 py-2 font-mono text-xs font-semibold text-white hover:bg-red-500 disabled:opacity-50 transition-colors"
+              >
+                {deleting ? "Deleting…" : "Delete Project"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

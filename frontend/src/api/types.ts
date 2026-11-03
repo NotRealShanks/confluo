@@ -20,6 +20,8 @@ export type Project = {
   id: string;
   title: string;
   role: Role;
+  templateId?: string | null;
+  templateConfig?: string | null;
   createdAt: string;
   updatedAt: string;
 };

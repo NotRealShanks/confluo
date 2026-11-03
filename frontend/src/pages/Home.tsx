@@ -1,12 +1,15 @@
 import { useState, useMemo } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import AppShell from "../components/AppShell";
-import NewProjectForm from "../components/NewProjectForm";
 import RoleBadge from "../components/RoleBadge";
 import { ProjectMembersBadge } from "../components/ProjectMembersBadge";
 import { formatDate } from "../lib/format";
 import { useProjects } from "../projects/hooks";
 import { useAuth } from "../auth/context";
+import { getTemplateById, TemplateIcon } from "../templates";
+import { deleteProject } from "../api/projects";
+import { ApiError } from "../api/client";
+import type { Project } from "../api/types";
 import {
   Search,
   FolderCode,
@@ -15,17 +18,23 @@ import {
   Plus,
   RefreshCw,
   AlertTriangle,
-  FolderGit2,
+  Trash2,
+  X,
 } from "lucide-react";
 
 type ProjectFilter = "all" | "recent" | "mine" | "shared";
 
 export default function Home() {
+  const navigate = useNavigate();
   const { user } = useAuth();
-  const { state, reload, addProject } = useProjects();
+  const { state, reload, removeProject } = useProjects();
   const [filter, setFilter] = useState<ProjectFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [showCreateModal, setShowCreateModal] = useState(false);
+
+  // Delete project state
+  const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Filter and search logic
   const filteredProjects = useMemo(() => {
@@ -61,9 +70,31 @@ export default function Home() {
     return state.status === "ready" ? state.data.filter((p) => p.role !== "OWNER").length : 0;
   }, [state]);
 
+  const confirmDeleteProject = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteProject(deleteTarget.id);
+      removeProject(deleteTarget.id);
+      setDeleteTarget(null);
+    } catch (err) {
+      console.error("Failed to delete project:", err);
+      if (err instanceof ApiError) {
+        setDeleteError(`API Error (${err.status}): ${err.message}`);
+      } else if (err instanceof Error) {
+        setDeleteError(err.message);
+      } else {
+        setDeleteError("Failed to delete project. Please verify that the backend service is running.");
+      }
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <AppShell wide>
-      {/* Welcome Header - Liveblocks Inspired */}
+      {/* Welcome Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-[#27272a]">
         <div>
           <div className="inline-flex items-center gap-2 rounded-full border border-[#27272a] bg-[#121214] px-3 py-0.5 font-mono text-[11px] text-[#a1a1aa] mb-1">
@@ -80,71 +111,50 @@ export default function Home() {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setShowCreateModal((s) => !s)}
+        <Link
+          to="/projects/new"
+          role="button"
+          aria-label="Create Workspace"
           className="inline-flex items-center gap-2 rounded-lg border border-white bg-white text-black px-4 py-2 font-mono text-xs font-semibold hover:bg-zinc-200 hover:shadow-[0_0_20px_rgba(255,255,255,0.25)] transition-all shrink-0 self-start sm:self-auto"
         >
           <Plus size={15} />
-          <span>{showCreateModal ? "Close Drawer" : "Create Workspace"}</span>
-        </button>
+          <span>Create Workspace</span>
+        </Link>
       </div>
 
-      {/* Inline Create Project Drawer */}
-      {showCreateModal && (
-        <div className="mt-6 rounded-xl border border-[#27272a] bg-[#121214] p-5 shadow-xl animate-in slide-in-from-top-3 duration-200">
-          <div className="flex items-center justify-between pb-3 border-b border-[#27272a] font-mono text-xs">
-            <span className="font-semibold text-[#f4f4f5] flex items-center gap-1.5">
-              <FolderGit2 size={14} className="text-white" />
-              Initialize New Project Workspace
-            </span>
-            <span className="text-[#71717a]">E2B Sandbox Enabled</span>
-          </div>
-          <p className="text-xs text-[#a1a1aa] mt-2">
-            Give your project a name to provision its Liveblocks CRDT room and cloud micro-VM sandbox.
-          </p>
-          <NewProjectForm
-            onCreated={(p) => {
-              addProject(p);
-              setShowCreateModal(false);
-            }}
-          />
-        </div>
-      )}
-
-      {/* Navigation Controls: Liveblocks-Inspired Segmented Tabs & Search */}
+      {/* Filter and Search Bar */}
       <div className="mt-8 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
-        {/* Segmented Filter Control */}
-        <div className="flex items-center rounded-lg bg-[#121214] border border-[#27272a] p-1 gap-1 overflow-x-auto shadow-inner">
+        {/* Filter Pills */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 font-mono text-xs">
           <button
             type="button"
             onClick={() => setFilter("all")}
-            className={`px-3 py-1.5 rounded-md font-mono text-xs transition-all whitespace-nowrap ${
+            className={`rounded-lg px-3 py-1.5 transition-all ${
               filter === "all"
-                ? "bg-[#27272a] text-white font-semibold shadow-sm"
-                : "text-[#a1a1aa] hover:text-[#f4f4f5]"
+                ? "bg-white text-black font-semibold shadow-sm"
+                : "text-[#a1a1aa] hover:text-[#f4f4f5] hover:bg-[#18181b]"
             }`}
           >
-            All Projects ({state.status === "ready" ? state.data.length : "…"})
+            All Workspaces
           </button>
           <button
             type="button"
             onClick={() => setFilter("recent")}
-            className={`px-3 py-1.5 rounded-md font-mono text-xs transition-all whitespace-nowrap ${
+            className={`rounded-lg px-3 py-1.5 transition-all ${
               filter === "recent"
-                ? "bg-[#27272a] text-white font-semibold shadow-sm"
-                : "text-[#a1a1aa] hover:text-[#f4f4f5]"
+                ? "bg-white text-black font-semibold shadow-sm"
+                : "text-[#a1a1aa] hover:text-[#f4f4f5] hover:bg-[#18181b]"
             }`}
           >
-            Recent
+            Recently Active
           </button>
           <button
             type="button"
             onClick={() => setFilter("mine")}
-            className={`px-3 py-1.5 rounded-md font-mono text-xs transition-all whitespace-nowrap ${
+            className={`rounded-lg px-3 py-1.5 transition-all ${
               filter === "mine"
-                ? "bg-[#27272a] text-white font-semibold shadow-sm"
-                : "text-[#a1a1aa] hover:text-[#f4f4f5]"
+                ? "bg-white text-black font-semibold shadow-sm"
+                : "text-[#a1a1aa] hover:text-[#f4f4f5] hover:bg-[#18181b]"
             }`}
           >
             My Projects ({ownerCount})
@@ -152,33 +162,35 @@ export default function Home() {
           <button
             type="button"
             onClick={() => setFilter("shared")}
-            className={`px-3 py-1.5 rounded-md font-mono text-xs transition-all whitespace-nowrap ${
+            className={`rounded-lg px-3 py-1.5 transition-all ${
               filter === "shared"
-                ? "bg-[#27272a] text-white font-semibold shadow-sm"
-                : "text-[#a1a1aa] hover:text-[#f4f4f5]"
+                ? "bg-white text-black font-semibold shadow-sm"
+                : "text-[#a1a1aa] hover:text-[#f4f4f5] hover:bg-[#18181b]"
             }`}
           >
             Shared with me ({sharedCount})
           </button>
         </div>
 
-        {/* Live Search Input */}
-        <div className="relative min-w-[260px]">
-          <Search size={14} className="absolute left-3 top-2.5 text-[#71717a]" />
+        {/* Search Input */}
+        <div className="relative w-full md:w-72">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#71717a]" />
           <input
             type="text"
+            placeholder="Search projects by title…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search projects by title…"
-            className="w-full rounded-lg border border-[#27272a] bg-[#121214] pl-9 pr-3 py-1.5 font-mono text-xs text-[#f4f4f5] placeholder-[#71717a] focus:border-white focus:outline-none transition-colors"
+            className="w-full rounded-lg border border-[#27272a] bg-[#121214] pl-9 pr-14 py-1.5 font-mono text-xs text-[#f4f4f5] placeholder-[#71717a] focus:border-zinc-500 focus:outline-none transition-colors"
           />
           {searchQuery && (
             <button
               type="button"
+              aria-label="CLEAR"
               onClick={() => setSearchQuery("")}
-              className="absolute right-2.5 top-2 text-[10px] text-[#71717a] hover:text-[#f4f4f5] font-mono"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono font-semibold text-zinc-400 hover:text-white flex items-center gap-0.5"
             >
-              CLEAR
+              <X size={11} />
+              <span>CLEAR</span>
             </button>
           )}
         </div>
@@ -228,10 +240,17 @@ export default function Home() {
           </div>
           <h3 className="font-display text-lg font-semibold text-[#f4f4f5]">No project workspaces found</h3>
           <p className="mt-1.5 text-xs text-[#a1a1aa] max-w-sm mx-auto leading-relaxed">
-            Create your first workspace to start writing code, inviting teammates, and running sandboxes.
+            Create your first workspace to start writing code, configuring dependencies, and collaborating live.
           </p>
-          <div className="mt-6 max-w-md mx-auto">
-            <NewProjectForm onCreated={addProject} />
+          <div className="mt-6">
+            <Link
+              to="/projects/new"
+              role="button"
+              className="inline-flex items-center gap-2 rounded-lg border border-white bg-white text-black px-5 py-2.5 font-mono text-xs font-semibold hover:bg-zinc-200 transition-all"
+            >
+              <Plus size={15} />
+              <span>Create Workspace</span>
+            </Link>
           </div>
         </div>
       )}
@@ -253,17 +272,18 @@ export default function Home() {
         </div>
       )}
 
-      {/* Project Cards Grid - Liveblocks Room Card Aesthetic */}
+      {/* Project Cards Grid - uses div with onClick so child buttons have clean event isolation */}
       {state.status === "ready" && filteredProjects.length > 0 && (
         <div className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredProjects.map((project) => (
-            <Link
+            <div
               key={project.id}
-              to={`/projects/${project.id}`}
-              className="group relative flex flex-col justify-between rounded-xl border border-[#27272a] bg-[#121214] p-5 hover:border-zinc-500 hover:bg-[#161619] transition-all duration-200 shadow-sm hover:shadow-[0_8px_30px_rgba(0,0,0,0.5)]"
+              role="article"
+              onClick={() => navigate(`/projects/${project.id}`)}
+              className="group relative flex flex-col justify-between rounded-xl border border-[#27272a] bg-[#121214] p-5 hover:border-zinc-500 hover:bg-[#161619] cursor-pointer transition-all duration-200 shadow-sm hover:shadow-[0_8px_30px_rgba(0,0,0,0.5)]"
             >
               <div>
-                {/* Card Header: Icon, Room ID, Live Presence, Role */}
+                {/* Card Header: Icon, Room ID, Live Presence, Role & Delete */}
                 <div className="flex items-center justify-between gap-3 pb-3 border-b border-[#27272a]/70">
                   <div className="flex items-center gap-2.5 min-w-0">
                     <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#18181b] border border-[#27272a] text-white group-hover:border-zinc-500 group-hover:bg-[#202024] transition-colors shrink-0">
@@ -279,7 +299,31 @@ export default function Home() {
                       </span>
                     </div>
                   </div>
-                  <RoleBadge role={project.role} />
+                  <div className="flex items-center gap-1.5">
+                    {project.templateId && project.templateId !== "blank" && (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-zinc-700 bg-zinc-800 text-[10px] font-mono font-medium text-zinc-300">
+                        <TemplateIcon icon={getTemplateById(project.templateId).icon} className="h-3 w-3" />
+                        <span>{getTemplateById(project.templateId).name}</span>
+                      </span>
+                    )}
+                    <RoleBadge role={project.role} />
+                    {project.role === "OWNER" && (
+                      <button
+                        type="button"
+                        title="Delete project workspace"
+                        aria-label={`Delete ${project.title}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          setDeleteError(null);
+                          setDeleteTarget(project);
+                        }}
+                        className="p-1.5 rounded-lg text-zinc-400 hover:text-red-400 hover:bg-red-950/60 border border-transparent hover:border-red-900/50 transition-all z-20"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Card Title & Collaborators */}
@@ -293,7 +337,6 @@ export default function Home() {
                       <time dateTime={project.updatedAt}>Updated {formatDate(project.updatedAt)}</time>
                     </div>
 
-                    {/* Real Project Members Badge (up to 3 + remainder) */}
                     <ProjectMembersBadge projectId={project.id} />
                   </div>
                 </div>
@@ -309,8 +352,71 @@ export default function Home() {
                   <ArrowRight size={13} />
                 </span>
               </div>
-            </Link>
+            </div>
           ))}
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-150"
+          onClick={() => {
+            if (!deleting) setDeleteTarget(null);
+          }}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-zinc-800 bg-[#121214] p-6 shadow-2xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 text-red-400">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-950/60 border border-red-800/60">
+                <Trash2 size={20} />
+              </div>
+              <div>
+                <h3 className="font-display text-sm font-semibold text-white">
+                  Delete Project Workspace
+                </h3>
+                <p className="font-mono text-[11px] text-zinc-400">
+                  This action is permanent and cannot be undone
+                </p>
+              </div>
+            </div>
+
+            <p className="font-mono text-xs text-zinc-300 leading-relaxed">
+              Are you sure you want to permanently delete{" "}
+              <strong className="text-white">"{deleteTarget.title}"</strong>? All
+              collaborative files, CRDT document history, and guest share links will be removed.
+            </p>
+
+            {deleteError && (
+              <div className="p-3 rounded-lg bg-red-950/40 border border-red-800/50 text-red-300 font-mono text-xs">
+                {deleteError}
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteTarget(null);
+                  setDeleteError(null);
+                }}
+                disabled={deleting}
+                className="rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2 font-mono text-xs text-white hover:bg-zinc-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteProject}
+                disabled={deleting}
+                className="rounded-lg border border-red-600 bg-red-600 px-4 py-2 font-mono text-xs font-semibold text-white hover:bg-red-500 disabled:opacity-50 transition-colors"
+              >
+                {deleting ? "Deleting…" : "Delete Project"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </AppShell>

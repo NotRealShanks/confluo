@@ -1,4 +1,4 @@
-package com.github.notrealshanks.confluobackend.service;
+﻿package com.github.notrealshanks.confluobackend.service;
 
 import java.util.Optional;
 
@@ -78,5 +78,35 @@ class ProjectServiceAuthorizationTests {
                 () -> projectService.requireAccess("user-1", "missing-project"));
 
         assertEquals(HttpStatus.NOT_FOUND, exception.getStatusCode());
+    }
+
+    @Test
+    void ownerCanDeleteProject() {
+        Project project = new Project();
+        project.setId("project-1");
+        project.getMembers().add(new ProjectMember("owner-1", Role.OWNER));
+
+        when(projectRepository.findById("project-1"))
+                .thenReturn(Optional.of(project));
+
+        projectService.delete("owner-1", "project-1");
+
+        verify(projectRepository).delete(project);
+    }
+
+    @Test
+    void nonOwnerCannotDeleteProject() {
+        Project project = new Project();
+        project.setId("project-1");
+        project.getMembers().add(new ProjectMember("editor-1", Role.EDITOR));
+
+        when(projectRepository.findById("project-1"))
+                .thenReturn(Optional.of(project));
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> projectService.delete("editor-1", "project-1"));
+
+        assertEquals(HttpStatus.FORBIDDEN, exception.getStatusCode());
     }
 }

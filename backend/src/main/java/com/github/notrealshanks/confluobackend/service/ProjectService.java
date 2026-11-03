@@ -1,4 +1,4 @@
-package com.github.notrealshanks.confluobackend.service;
+﻿package com.github.notrealshanks.confluobackend.service;
 
 import java.time.Instant;
 import java.util.Comparator;
@@ -30,10 +30,24 @@ public class ProjectService {
         Instant now = Instant.now();
         Project project = new Project();
         project.setTitle(request.title().trim());
+        if (request.templateId() != null && !request.templateId().isBlank()) {
+            project.setTemplateId(request.templateId().trim());
+        }
+        if (request.templateConfig() != null && !request.templateConfig().isBlank()) {
+            project.setTemplateConfig(request.templateConfig().trim());
+        }
         project.getMembers().add(new ProjectMember(userId, Role.OWNER));
         project.setCreatedAt(now);
         project.setUpdatedAt(now);
         return toResponse(projectRepository.save(project), Role.OWNER);
+    }
+
+    public void delete(String userId, String projectId) {
+        Access access = requireAccess(userId, projectId);
+        if (access.role() != Role.OWNER) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the project owner can delete this project");
+        }
+        projectRepository.delete(access.project());
     }
 
     public List<ProjectResponse> listFor(String userId) {
@@ -66,6 +80,6 @@ public class ProjectService {
     }
 
     private static ProjectResponse toResponse(Project project, Role role) {
-        return new ProjectResponse(project.getId(), project.getTitle(), role, project.getCreatedAt(), project.getUpdatedAt());
+        return new ProjectResponse(project.getId(), project.getTitle(), role, project.getTemplateId(), project.getTemplateConfig(), project.getCreatedAt(), project.getUpdatedAt());
     }
 }

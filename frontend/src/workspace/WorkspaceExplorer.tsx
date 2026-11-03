@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import * as Y from "yjs";
 import { useSelf } from "@liveblocks/react/suspense";
@@ -16,6 +16,7 @@ import {
   RefreshCw,
   Trash2,
   Upload,
+  Boxes,
 } from "lucide-react";
 import { createNode, deleteNode, getFileText, renameNode, snapshot } from "./ops";
 import { getContextMenuPosition } from "./contextMenu";
@@ -27,6 +28,7 @@ import { createZip, importBinaryEntry, importEntry, isTextBuffer, nodeForPath, n
 import { deleteAsset, downloadAsset, uploadAsset } from "../api/assets";
 import { ApiError } from "../api/client";
 import { workspaceTextZipEntries } from "./fileManagement";
+import { DependencyManagerModal } from "../components/DependencyManagerModal";
 
 type WorkspaceExplorerProps = {
   doc: Y.Doc;
@@ -58,6 +60,7 @@ export default function WorkspaceExplorer({
   const [inlineOperation, setInlineOperation] = useState<InlineOperation | null>(null);
   const [deleteNodeTarget, setDeleteNodeTarget] = useState<TreeNode | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [depsModalOpen, setDepsModalOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [importing, setImporting] = useState(false);
   const inlineInputRef = useRef<HTMLInputElement>(null);
@@ -514,7 +517,7 @@ export default function WorkspaceExplorer({
             <button type="button" title="Collapse all" aria-label="Collapse all" onClick={() => setExpanded(new Set())}><ChevronsDownUp size={15} /></button>
             <button type="button" title="Import files" aria-label="Import files" onClick={() => importFilesRef.current?.click()} disabled={importing}><Upload size={15} /></button>
             <button type="button" title="Import folder" aria-label="Import folder" onClick={() => importFolderRef.current?.click()} disabled={importing}><Folder size={15} /></button>
-            <button type="button" title="Export project" aria-label="Export project" onClick={() => void exportProject()}><FileArchive size={15} /></button>
+            <button type="button" title="Export project" aria-label="Export project" onClick={() => void exportProject()}><FileArchive size={15} /></button>`n            <button type="button" title="Manage dependencies" aria-label="Manage dependencies" onClick={() => setDepsModalOpen(true)}><Boxes size={15} /></button>
           </div>
         )}
       </div>
@@ -592,6 +595,7 @@ export default function WorkspaceExplorer({
           </section>
         </div>
       )}
+          <DependencyManagerModal isOpen={depsModalOpen} onClose={() => setDepsModalOpen(false)} doc={doc} canEdit={canWrite} />
     </aside>
   );
 }

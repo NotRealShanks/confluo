@@ -1,4 +1,4 @@
-package com.github.notrealshanks.confluobackend.model;
+﻿package com.github.notrealshanks.confluobackend.model;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -20,6 +20,10 @@ public class Project {
     private String id;
 
     private String title;
+
+    private String templateId;
+
+    private String templateConfig;
 
     // The owner is stored here with Role.OWNER; there is no separate ownerId to keep in sync
     private List<ProjectMember> members = new ArrayList<>();

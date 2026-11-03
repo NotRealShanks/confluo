@@ -41,7 +41,11 @@ export function useProjects() {
     setState((prev) => (prev.status === "ready" ? { status: "ready", data: [project, ...prev.data] } : prev));
   }, []);
 
-  return { state, reload, addProject };
+  const removeProject = useCallback((id: string) => {
+    setState((prev) => (prev.status === "ready" ? { status: "ready", data: prev.data.filter((p) => p.id !== id) } : prev));
+  }, []);
+
+  return { state, reload, addProject, removeProject };
 }
 
 export function useProject(id: string) {
