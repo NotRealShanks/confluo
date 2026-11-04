@@ -4,6 +4,7 @@ import {
   addMember,
   listMembers,
   removeMember,
+  transferOwnership,
   updateMemberRole,
   type ProjectMember,
 } from "../api/members";
@@ -19,9 +20,10 @@ type Props = {
   projectId: string;
   projectRole: Role;
   onClose: () => void;
+  onRoleChanged?: (newRole: Role) => void;
 };
 
-export default function ShareDialog({ projectId, projectRole, onClose }: Props) {
+export default function ShareDialog({ projectId, projectRole, onClose, onRoleChanged }: Props) {
   const canManageLinks = projectRole === "OWNER";
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [email, setEmail] = useState("");
@@ -37,6 +39,9 @@ export default function ShareDialog({ projectId, projectRole, onClose }: Props) 
   } | null>(null);
   const [memberToRemove, setMemberToRemove] =
     useState<ProjectMember | null>(null);
+  const [memberToTransfer, setMemberToTransfer] =
+    useState<ProjectMember | null>(null);
+  const [transferBusy, setTransferBusy] = useState(false);
   const [shareLinks, setShareLinks] = useState<ShareLink[]>([]);
   const [linkExpiration, setLinkExpiration] = useState("");
   const [linkBusy, setLinkBusy] = useState(false);
@@ -222,10 +227,30 @@ export default function ShareDialog({ projectId, projectRole, onClose }: Props) 
       );
 
       setMemberToRemove(null);
-    } catch {
-      setError("Could not remove this member.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not remove this member.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleTransfer() {
+    if (!memberToTransfer || transferBusy) return;
+    setTransferBusy(true);
+    setError("");
+    setAddMessage("");
+    setRoleMessage(null);
+    try {
+      await transferOwnership(projectId, memberToTransfer.userId);
+      setAddMessage(`Ownership transferred to ${memberToTransfer.name}. You are now an Editor.`);
+      onRoleChanged?.("EDITOR");
+      const data = await listMembers(projectId);
+      setMembers(data);
+      setMemberToTransfer(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not transfer ownership.");
+    } finally {
+      setTransferBusy(false);
     }
   }
 
@@ -456,6 +481,18 @@ export default function ShareDialog({ projectId, projectRole, onClose }: Props) 
                           <option value="VIEWER">Viewer</option>
                         </select>
 
+                        {canManageLinks && (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => setMemberToTransfer(member)}
+                            className="rounded-md px-1.5 py-1 text-xs font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-50"
+                            title={`Transfer ownership to ${member.name}`}
+                          >
+                            Transfer
+                          </button>
+                        )}
+
                         <button
                           type="button"
                           disabled={busy}
@@ -500,6 +537,56 @@ export default function ShareDialog({ projectId, projectRole, onClose }: Props) 
           </button>
         </footer>
       </section>
+
+      {memberToTransfer && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/40 p-4">
+          <section
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="transfer-ownership-title"
+            aria-describedby="transfer-ownership-description"
+            className="w-full max-w-sm rounded-xl bg-white p-5 shadow-2xl"
+          >
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+              <span className="text-lg font-bold">⇄</span>
+            </div>
+
+            <h3
+              id="transfer-ownership-title"
+              className="mt-3 text-lg font-semibold text-gray-900"
+            >
+              Transfer ownership?
+            </h3>
+
+            <p
+              id="transfer-ownership-description"
+              className="mt-2 text-sm text-gray-600 leading-relaxed"
+            >
+              Transfer ownership of this project to{" "}
+              <strong>{memberToTransfer.name}</strong>? They will become the project <strong>OWNER</strong>, and your role will change to <strong>EDITOR</strong>. This action cannot be reversed by you.
+            </p>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={transferBusy}
+                onClick={() => setMemberToTransfer(null)}
+                className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={transferBusy}
+                onClick={() => void handleTransfer()}
+                className="rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+              >
+                {transferBusy ? "Transferring…" : "Transfer ownership"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
 
       {memberToRemove && (
         <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/40 p-4">

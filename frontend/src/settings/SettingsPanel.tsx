@@ -1,18 +1,31 @@
 import { useContext, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
+  AlertTriangle,
+  ArrowRightLeft,
   Check,
   Code2,
   Eye,
   FileText,
   Laptop,
+  LogOut,
   Moon,
   Palette,
   RotateCcw,
   Search,
   Sun,
+  Trash2,
   User as UserIcon,
   X,
 } from "lucide-react";
+import { useInRouterContext, useNavigate } from "react-router";
+import {
+  listMembers,
+  removeMember,
+  transferOwnership,
+  type ProjectMember,
+} from "../api/members";
+import { deleteProject } from "../api/projects";
+import type { Role } from "../api/types";
 import { useSettings } from "./useSettings";
 import { THEME_PRESETS } from "./monacoThemes";
 import {
@@ -29,7 +42,15 @@ import { AuthContext } from "../auth/context";
 import { updateProfile } from "../api/auth";
 import UserAvatar from "../components/UserAvatar";
 
-type SettingsCategory = "appearance" | "editor" | "profile" | "files" | "accessibility";
+type SettingsCategory = "appearance" | "editor" | "profile" | "files" | "accessibility" | "danger";
+
+export interface SettingsPanelProps {
+  projectId?: string;
+  projectName?: string;
+  projectRole?: Role;
+  onRoleChanged?: (newRole: Role) => void;
+  onProjectDeleted?: () => void;
+}
 
 interface SettingItemDefinition {
   id: string;
@@ -147,7 +168,25 @@ const SETTING_ITEMS: SettingItemDefinition[] = [
   },
 ];
 
-export function SettingsPanel() {
+function RouterNavigator({
+  onNavigateRef,
+}: {
+  onNavigateRef: React.RefObject<((to: string) => void) | null>;
+}) {
+  const navigate = useNavigate();
+  useEffect(() => {
+    onNavigateRef.current = navigate;
+  }, [navigate, onNavigateRef]);
+  return null;
+}
+
+export function SettingsPanel({
+  projectId,
+  projectName = "Untitled Project",
+  projectRole,
+  onRoleChanged,
+  onProjectDeleted,
+}: SettingsPanelProps = {}) {
   const {
     settings,
     resolvedTheme,
@@ -156,6 +195,29 @@ export function SettingsPanel() {
     isSettingsOpen,
     closeSettings,
   } = useSettings();
+
+  const inRouter = useInRouterContext();
+  const navigateRef = useRef<((to: string) => void) | null>(null);
+
+  // Danger zone state
+  const [transferModalOpen, setTransferModalOpen] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [leaveModalOpen, setLeaveModalOpen] = useState(false);
+  const [projectMembers, setProjectMembers] = useState<ProjectMember[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [selectedNewOwnerId, setSelectedNewOwnerId] = useState("");
+  const [transferBusy, setTransferBusy] = useState(false);
+  const [transferError, setTransferError] = useState<string | null>(null);
+  const [transferSuccess, setTransferSuccess] = useState<string | null>(null);
+  const [deleteInput, setDeleteInput] = useState("");
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [leaveBusy, setLeaveBusy] = useState(false);
+  const [leaveError, setLeaveError] = useState<string | null>(null);
+  const [dangerNotification, setDangerNotification] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
 
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>("appearance");
   const [searchQuery, setSearchQuery] = useState("");
@@ -171,6 +233,105 @@ export function SettingsPanel() {
   const [prevUserName, setPrevUserName] = useState(user?.name);
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileStatus, setProfileStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  const eligibleMembers = useMemo(() => {
+    return projectMembers.filter(
+      (m) => m.userId !== user?.id && m.role !== "OWNER",
+    );
+  }, [projectMembers, user?.id]);
+
+  const loadMembersForDangerZone = async () => {
+    if (!projectId) return;
+    setLoadingMembers(true);
+    try {
+      const data = await listMembers(projectId);
+      setProjectMembers(data);
+    } catch {
+      // ignore
+    } finally {
+      setLoadingMembers(false);
+    }
+  };
+
+  const handleOpenTransferModal = () => {
+    setSelectedNewOwnerId("");
+    setTransferError(null);
+    setTransferSuccess(null);
+    setTransferModalOpen(true);
+    void loadMembersForDangerZone();
+  };
+
+  const handleTransferOwnership = async () => {
+    if (!projectId || !selectedNewOwnerId) return;
+    setTransferBusy(true);
+    setTransferError(null);
+    try {
+      await transferOwnership(projectId, selectedNewOwnerId);
+      const targetMember = projectMembers.find(
+        (m) => m.userId === selectedNewOwnerId,
+      );
+      const msg = `Ownership transferred successfully to ${targetMember?.name ?? "selected member"}. You are now an Editor.`;
+      setTransferSuccess(msg);
+      setDangerNotification({ type: "success", text: msg });
+      onRoleChanged?.("EDITOR");
+      await loadMembersForDangerZone();
+      setTimeout(() => {
+        setTransferModalOpen(false);
+        setTransferSuccess(null);
+      }, 1500);
+    } catch (err) {
+      setTransferError(
+        err instanceof Error ? err.message : "Failed to transfer ownership.",
+      );
+    } finally {
+      setTransferBusy(false);
+    }
+  };
+
+  const handleDeleteProject = async () => {
+    if (!projectId || deleteInput !== projectName) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await deleteProject(projectId);
+      setDeleteModalOpen(false);
+      closeSettings();
+      onProjectDeleted?.();
+      if (navigateRef.current) {
+        navigateRef.current("/dashboard");
+      } else {
+        window.location.assign("/dashboard");
+      }
+    } catch (err) {
+      setDeleteError(
+        err instanceof Error ? err.message : "Failed to delete project.",
+      );
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
+
+  const handleLeaveProject = async () => {
+    if (!projectId || !user?.id) return;
+    setLeaveBusy(true);
+    setLeaveError(null);
+    try {
+      await removeMember(projectId, user.id);
+      setLeaveModalOpen(false);
+      closeSettings();
+      if (navigateRef.current) {
+        navigateRef.current("/dashboard");
+      } else {
+        window.location.assign("/dashboard");
+      }
+    } catch (err) {
+      setLeaveError(
+        err instanceof Error ? err.message : "Failed to leave project.",
+      );
+    } finally {
+      setLeaveBusy(false);
+    }
+  };
 
   if (user?.name !== prevUserName) {
     setPrevUserName(user?.name);
@@ -230,19 +391,47 @@ export function SettingsPanel() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [closeSettings, isSettingsOpen]);
 
+  const allSettingItems = useMemo(() => {
+    if (!projectId) return SETTING_ITEMS;
+    return [
+      ...SETTING_ITEMS,
+      {
+        id: "transferOwnership",
+        category: "danger" as SettingsCategory,
+        label: "Transfer Ownership",
+        description: "Transfer project ownership to another member.",
+        keywords: ["transfer", "owner", "ownership", "danger"],
+      },
+      {
+        id: "leaveProject",
+        category: "danger" as SettingsCategory,
+        label: "Leave Project",
+        description: "Leave this project workspace.",
+        keywords: ["leave", "exit", "danger", "project"],
+      },
+      {
+        id: "deleteProject",
+        category: "danger" as SettingsCategory,
+        label: "Delete Project",
+        description: "Permanently delete this project and all collaborative assets.",
+        keywords: ["delete", "remove", "danger", "destroy", "project"],
+      },
+    ];
+  }, [projectId]);
+
   // Filter items based on search query
   const filteredItemIds = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return null; // null means no active filter
     return new Set(
-      SETTING_ITEMS.filter(
+      allSettingItems.filter(
         (item) =>
           item.label.toLowerCase().includes(q) ||
           item.description.toLowerCase().includes(q) ||
           item.keywords.some((k) => k.includes(q)),
       ).map((item) => item.id),
     );
-  }, [searchQuery]);
+  }, [allSettingItems, searchQuery]);
 
   if (!isSettingsOpen) {
     return null;
@@ -268,6 +457,7 @@ export function SettingsPanel() {
       ref={panelRef}
     >
       <div className="ide-settings-container">
+        {inRouter && <RouterNavigator onNavigateRef={navigateRef} />}
         {/* Header */}
         <header className="ide-settings-header">
           <div className="ide-settings-title-group">
@@ -385,6 +575,21 @@ export function SettingsPanel() {
               <Eye size={16} />
               <span>Accessibility</span>
             </button>
+
+            {projectId && (
+              <button
+                type="button"
+                className={`ide-settings-nav-item ${activeCategory === "danger" && !searchQuery ? "is-active" : ""}`}
+                style={{ color: "#f87171" }}
+                onClick={() => {
+                  setActiveCategory("danger");
+                  setSearchQuery("");
+                }}
+              >
+                <AlertTriangle size={16} style={{ color: "#f87171" }} />
+                <span>Danger Zone</span>
+              </button>
+            )}
           </nav>
 
           {/* Settings Content Area */}
@@ -953,6 +1158,152 @@ export function SettingsPanel() {
               </section>
             )}
 
+            {/* Danger Zone Section */}
+            {projectId && (searchQuery ? (matchesFilter("transferOwnership") || matchesFilter("leaveProject") || matchesFilter("deleteProject")) : activeCategory === "danger") && (
+              <section className="ide-settings-section" aria-labelledby="section-danger">
+                <h3 id="section-danger" className="ide-settings-section-title" style={{ color: "#f87171" }}>
+                  <AlertTriangle size={18} style={{ color: "#f87171" }} /> Danger Zone
+                </h3>
+
+                {dangerNotification && (
+                  <div
+                    role="status"
+                    className={`p-3 rounded-lg border text-xs font-mono flex items-center justify-between ${
+                      dangerNotification.type === "success"
+                        ? "bg-emerald-950/40 border-emerald-800 text-emerald-300"
+                        : "bg-red-950/40 border-red-800 text-red-300"
+                    }`}
+                  >
+                    <span>{dangerNotification.text}</span>
+                    <button
+                      type="button"
+                      onClick={() => setDangerNotification(null)}
+                      className="text-zinc-400 hover:text-white"
+                      aria-label="Dismiss message"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
+
+                {/* Transfer Ownership Card */}
+                {matchesFilter("transferOwnership") && (
+                  <div className="ide-setting-row" style={{ alignItems: "flex-start" }}>
+                    <div className="ide-setting-info">
+                      <span className="ide-setting-label">Transfer Project Ownership</span>
+                      <p className="ide-setting-description">
+                        Transfer project ownership to another existing member. You will automatically become an Editor.
+                      </p>
+                      {projectRole !== "OWNER" && (
+                        <p className="text-xs text-zinc-500 mt-1 italic">
+                          Only the project owner can transfer ownership.
+                        </p>
+                      )}
+                    </div>
+                    <div className="ide-setting-control">
+                      {projectRole === "OWNER" ? (
+                        <button
+                          type="button"
+                          onClick={handleOpenTransferModal}
+                          className="px-3 py-1.5 rounded-lg border border-amber-600/50 bg-amber-950/30 text-amber-300 hover:bg-amber-900/40 font-mono text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                          <ArrowRightLeft size={14} />
+                          <span>Transfer Ownership</span>
+                        </button>
+                      ) : (
+                        <span className="px-2.5 py-1 rounded text-[11px] font-mono bg-zinc-800 text-zinc-500 border border-zinc-700">
+                          Owner only
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Leave Project Card */}
+                {matchesFilter("leaveProject") && (
+                  <div className="ide-setting-row" style={{ alignItems: "flex-start" }}>
+                    <div className="ide-setting-info">
+                      <span className="ide-setting-label">Leave Project</span>
+                      <p className="ide-setting-description">
+                        Remove yourself from this project workspace.
+                      </p>
+                      {projectRole === "OWNER" ? (
+                        <div className="mt-2 p-2.5 rounded border border-amber-900/40 bg-amber-950/20 text-amber-300/90 text-xs">
+                          <strong>Owner Notice:</strong> Transfer ownership before leaving the project. The owner cannot leave without transferring ownership.
+                        </div>
+                      ) : (
+                        <p className="text-xs text-zinc-500 mt-1">
+                          You will lose access to all files and discussions in this workspace until re-invited.
+                        </p>
+                      )}
+                    </div>
+                    <div className="ide-setting-control">
+                      {projectRole === "OWNER" ? (
+                        <button
+                          type="button"
+                          disabled
+                          title="Transfer ownership before leaving the project"
+                          className="px-3 py-1.5 rounded-lg border border-zinc-700 bg-zinc-800/50 text-zinc-500 font-mono text-xs cursor-not-allowed flex items-center gap-1.5"
+                        >
+                          <LogOut size={14} />
+                          <span>Leave Project</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLeaveError(null);
+                            setLeaveModalOpen(true);
+                          }}
+                          className="px-3 py-1.5 rounded-lg border border-red-800/50 bg-red-950/30 text-red-300 hover:bg-red-900/40 font-mono text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                          <LogOut size={14} />
+                          <span>Leave Project</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Delete Project Card */}
+                {matchesFilter("deleteProject") && (
+                  <div className="ide-setting-row" style={{ alignItems: "flex-start" }}>
+                    <div className="ide-setting-info">
+                      <span className="ide-setting-label" style={{ color: "#f87171" }}>Delete Project</span>
+                      <p className="ide-setting-description">
+                        Permanently delete this project workspace, files, and collaborative room history. This action cannot be reversed.
+                      </p>
+                      {projectRole !== "OWNER" && (
+                        <p className="text-xs text-zinc-500 mt-1 italic">
+                          Only the project owner can delete this project.
+                        </p>
+                      )}
+                    </div>
+                    <div className="ide-setting-control">
+                      {projectRole === "OWNER" ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDeleteInput("");
+                            setDeleteError(null);
+                            setDeleteModalOpen(true);
+                          }}
+                          className="px-3 py-1.5 rounded-lg border border-red-600 bg-red-600 hover:bg-red-500 text-white font-mono text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
+                        >
+                          <Trash2 size={14} />
+                          <span>Delete Project</span>
+                        </button>
+                      ) : (
+                        <span className="px-2.5 py-1 rounded text-[11px] font-mono bg-zinc-800 text-zinc-500 border border-zinc-700">
+                          Owner only
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </section>
+            )}
+
             {/* Empty Search Results */}
             {searchQuery && filteredItemIds && filteredItemIds.size === 0 && (
               <div className="ide-settings-empty">
@@ -969,6 +1320,245 @@ export function SettingsPanel() {
           </main>
         </div>
       </div>
+      {/* Transfer Ownership Modal */}
+      {transferModalOpen && (
+        <div
+          className="fixed inset-0 z-60 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-150"
+          onClick={() => {
+            if (!transferBusy) setTransferModalOpen(false);
+          }}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-zinc-800 bg-[#121214] p-6 shadow-2xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 text-amber-400">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-950/60 border border-amber-800/60">
+                <ArrowRightLeft size={20} />
+              </div>
+              <div>
+                <h3 className="font-display text-sm font-semibold text-white">
+                  Transfer Ownership
+                </h3>
+                <p className="font-mono text-[11px] text-zinc-400">
+                  Choose a member to become the new project owner
+                </p>
+              </div>
+            </div>
+
+            {transferError && (
+              <div className="p-3 rounded-lg bg-red-950/40 border border-red-800/50 text-red-300 font-mono text-xs">
+                {transferError}
+              </div>
+            )}
+
+            {transferSuccess && (
+              <div className="p-3 rounded-lg bg-emerald-950/40 border border-emerald-800/50 text-emerald-300 font-mono text-xs">
+                {transferSuccess}
+              </div>
+            )}
+
+            {loadingMembers ? (
+              <p className="font-mono text-xs text-zinc-400 py-3">Loading project members…</p>
+            ) : eligibleMembers.length === 0 ? (
+              <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/60 text-center space-y-2">
+                <p className="font-mono text-xs text-zinc-300">
+                  No eligible members found in this project.
+                </p>
+                <p className="text-[11px] text-zinc-500">
+                  You must first invite a collaborator using the Share menu before transferring ownership.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <label htmlFor="select-new-owner-input" className="block font-mono text-xs text-zinc-300">
+                  Select new owner:
+                </label>
+                <select
+                  id="select-new-owner-input"
+                  value={selectedNewOwnerId}
+                  onChange={(e) => setSelectedNewOwnerId(e.target.value)}
+                  disabled={transferBusy}
+                  className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 font-mono text-xs text-white focus:border-amber-500 focus:outline-none"
+                >
+                  <option value="">-- Choose a collaborator --</option>
+                  {eligibleMembers.map((m) => (
+                    <option key={m.userId} value={m.userId}>
+                      {m.name} ({m.email || "no email"}) · Current role: {m.role}
+                    </option>
+                  ))}
+                </select>
+
+                <div className="p-3 rounded-lg bg-amber-950/20 border border-amber-800/40 text-amber-300/90 text-xs space-y-1">
+                  <p className="font-semibold">Important:</p>
+                  <p>• The selected member will become the sole <strong>OWNER</strong>.</p>
+                  <p>• Your role will automatically become <strong>EDITOR</strong>.</p>
+                  <p>• You will not be removed from the project.</p>
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setTransferModalOpen(false)}
+                disabled={transferBusy}
+                className="rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2 font-mono text-xs text-white hover:bg-zinc-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleTransferOwnership}
+                disabled={!selectedNewOwnerId || transferBusy}
+                className="rounded-lg border border-amber-600 bg-amber-600 px-4 py-2 font-mono text-xs font-semibold text-white hover:bg-amber-500 disabled:opacity-40 transition-colors"
+              >
+                {transferBusy ? "Transferring…" : "Confirm Transfer"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Project Modal */}
+      {deleteModalOpen && (
+        <div
+          className="fixed inset-0 z-60 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-150"
+          onClick={() => {
+            if (!deleteBusy) setDeleteModalOpen(false);
+          }}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-zinc-800 bg-[#121214] p-6 shadow-2xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 text-red-400">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-950/60 border border-red-800/60">
+                <Trash2 size={20} />
+              </div>
+              <div>
+                <h3 className="font-display text-sm font-semibold text-white">
+                  Delete Project Workspace
+                </h3>
+                <p className="font-mono text-[11px] text-zinc-400">
+                  This action is permanent and cannot be undone
+                </p>
+              </div>
+            </div>
+
+            <p className="font-mono text-xs text-zinc-300 leading-relaxed">
+              Are you sure you want to permanently delete{" "}
+              <strong className="text-white">"{projectName}"</strong>? All
+              collaborative files, CRDT history, and active rooms will be removed.
+            </p>
+
+            <div className="space-y-1.5">
+              <label htmlFor="confirm-delete-project-field" className="block font-mono text-xs text-zinc-400">
+                Please type <strong className="text-white select-all">{projectName}</strong> to confirm:
+              </label>
+              <input
+                id="confirm-delete-project-field"
+                type="text"
+                value={deleteInput}
+                onChange={(e) => setDeleteInput(e.target.value)}
+                placeholder={projectName}
+                disabled={deleteBusy}
+                className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 font-mono text-xs text-white placeholder-zinc-600 focus:border-red-500 focus:outline-none"
+              />
+            </div>
+
+            {deleteError && (
+              <div className="p-3 rounded-lg bg-red-950/40 border border-red-800/50 text-red-300 font-mono text-xs">
+                {deleteError}
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteModalOpen(false);
+                  setDeleteError(null);
+                }}
+                disabled={deleteBusy}
+                className="rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2 font-mono text-xs text-white hover:bg-zinc-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteProject}
+                disabled={deleteInput !== projectName || deleteBusy}
+                className="rounded-lg border border-red-600 bg-red-600 px-4 py-2 font-mono text-xs font-semibold text-white hover:bg-red-500 disabled:opacity-40 transition-colors"
+              >
+                {deleteBusy ? "Deleting…" : "Delete Project"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Leave Project Modal */}
+      {leaveModalOpen && (
+        <div
+          className="fixed inset-0 z-60 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-150"
+          onClick={() => {
+            if (!leaveBusy) setLeaveModalOpen(false);
+          }}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-zinc-800 bg-[#121214] p-6 shadow-2xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 text-red-400">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-950/60 border border-red-800/60">
+                <LogOut size={20} />
+              </div>
+              <div>
+                <h3 className="font-display text-sm font-semibold text-white">
+                  Leave Project
+                </h3>
+                <p className="font-mono text-[11px] text-zinc-400">
+                  Confirm leaving this collaborative workspace
+                </p>
+              </div>
+            </div>
+
+            <p className="font-mono text-xs text-zinc-300 leading-relaxed">
+              Are you sure you want to leave <strong className="text-white">"{projectName}"</strong>?
+              You will lose access to all files and room communications until another member re-invites you.
+            </p>
+
+            {leaveError && (
+              <div className="p-3 rounded-lg bg-red-950/40 border border-red-800/50 text-red-300 font-mono text-xs">
+                {leaveError}
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setLeaveModalOpen(false);
+                  setLeaveError(null);
+                }}
+                disabled={leaveBusy}
+                className="rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2 font-mono text-xs text-white hover:bg-zinc-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleLeaveProject}
+                disabled={leaveBusy}
+                className="rounded-lg border border-red-600 bg-red-600 px-4 py-2 font-mono text-xs font-semibold text-white hover:bg-red-500 disabled:opacity-50 transition-colors"
+              >
+                {leaveBusy ? "Leaving…" : "Leave Project"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { Link, useParams, useNavigate } from "react-router";
 import * as Y from "yjs";
 import { getYjsProviderForRoom } from "@liveblocks/yjs";
@@ -25,7 +25,7 @@ import {
   X,
 } from "lucide-react";
 import { ApiError } from "../api/client";
-import type { Project } from "../api/types";
+import type { Project, Role } from "../api/types";
 import type { editor } from "monaco-editor";
 import Editor from "../Editor";
 import Presence from "../Presence";
@@ -405,6 +405,8 @@ function BottomPanel({
 export function CollaborativeWorkspace({
   projectId,
   projectName,
+  projectRole,
+  onRoleChanged,
   templateId,
   templateConfig,
   canInitialize = true,
@@ -415,6 +417,8 @@ export function CollaborativeWorkspace({
 }: {
   projectId: string;
   projectName?: string;
+  projectRole?: Role;
+  onRoleChanged?: (newRole: Role) => void;
   templateId?: string | null;
   templateConfig?: string | null;
   canInitialize?: boolean;
@@ -1149,7 +1153,12 @@ export function CollaborativeWorkspace({
           <ProjectChatPanel projectId={projectId} onClose={() => setChatOpen(false)} />
         </aside>
       )}
-      <SettingsPanel />
+      <SettingsPanel
+        projectId={projectId}
+        projectName={projectName}
+        projectRole={projectRole}
+        onRoleChanged={onRoleChanged}
+      />
     </div>
   );
 }
@@ -1157,17 +1166,21 @@ export function CollaborativeWorkspace({
 function ProjectHeader({
   project,
   onNavigateToComment,
+  onRoleChanged,
 }: {
   project: Project;
   onNavigateToComment?: (fileId: string, lineNumber: number) => void;
+  onRoleChanged?: (newRole: Role) => void;
 }) {
   const [shareOpen, setShareOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteInput, setDeleteInput] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const handleDeleteProject = async () => {
+    if (deleteInput !== project.title) return;
     setDeleting(true);
     setDeleteError(null);
     try {
@@ -1211,7 +1224,14 @@ function ProjectHeader({
         )}
         <AccountMenu compact />
       </header>
-      {shareOpen && <ShareDialog projectId={project.id} projectRole={project.role} onClose={() => setShareOpen(false)} />}
+      {shareOpen && (
+        <ShareDialog
+          projectId={project.id}
+          projectRole={project.role}
+          onClose={() => setShareOpen(false)}
+          onRoleChanged={onRoleChanged}
+        />
+      )}
       {deleteOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-150"
@@ -1243,6 +1263,21 @@ function ProjectHeader({
               collaborative files, CRDT document history, and guest share links will be removed.
             </p>
 
+            <div className="space-y-1.5">
+              <label htmlFor="confirm-delete-header-field" className="block font-mono text-xs text-zinc-400">
+                Please type <strong className="text-white select-all">{project.title}</strong> to confirm:
+              </label>
+              <input
+                id="confirm-delete-header-field"
+                type="text"
+                value={deleteInput}
+                onChange={(e) => setDeleteInput(e.target.value)}
+                placeholder={project.title}
+                disabled={deleting}
+                className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 font-mono text-xs text-white placeholder-zinc-600 focus:border-red-500 focus:outline-none"
+              />
+            </div>
+
             {deleteError && (
               <div className="p-3 rounded-lg bg-red-950/40 border border-red-800/50 text-red-300 font-mono text-xs">
                 {deleteError}
@@ -1254,6 +1289,7 @@ function ProjectHeader({
                 type="button"
                 onClick={() => {
                   setDeleteOpen(false);
+                  setDeleteInput("");
                   setDeleteError(null);
                 }}
                 disabled={deleting}
@@ -1264,8 +1300,8 @@ function ProjectHeader({
               <button
                 type="button"
                 onClick={handleDeleteProject}
-                disabled={deleting}
-                className="rounded-lg border border-red-600 bg-red-600 px-4 py-2 font-mono text-xs font-semibold text-white hover:bg-red-500 disabled:opacity-50 transition-colors"
+                disabled={deleting || deleteInput !== project.title}
+                className="rounded-lg border border-red-600 bg-red-600 px-4 py-2 font-mono text-xs font-semibold text-white hover:bg-red-500 disabled:opacity-40 transition-colors"
               >
                 {deleting ? "Deleting…" : "Delete Project"}
               </button>
@@ -1274,6 +1310,50 @@ function ProjectHeader({
         </div>
       )}
     </>
+  );
+}
+
+function ProjectLoadedView({
+  project: initialProject,
+  roomAttempt,
+  setRoomAttempt,
+  focusComment,
+  setFocusComment,
+}: {
+  project: Project;
+  roomAttempt: number;
+  setRoomAttempt: React.Dispatch<React.SetStateAction<number>>;
+  focusComment: { fileId: string; lineNumber: number } | null;
+  setFocusComment: (val: { fileId: string; lineNumber: number } | null) => void;
+}) {
+  const [currentRole, setCurrentRole] = useState(initialProject.role);
+  const project = { ...initialProject, role: currentRole };
+
+  return (
+    <div className="ide-shell">
+      <RoomErrorBoundary onRetry={() => setRoomAttempt((attempt) => attempt + 1)}>
+        <Room key={roomAttempt} projectId={project.id}>
+          <FollowProvider>
+            <ProjectHeader
+              project={project}
+              onNavigateToComment={(fileId, lineNumber) => setFocusComment({ fileId, lineNumber })}
+              onRoleChanged={(newRole) => setCurrentRole(newRole)}
+            />
+            <ConnectionOfflineBanner />
+            <CollaborativeWorkspace
+              projectId={project.id}
+              projectName={project.title}
+              projectRole={currentRole}
+              onRoleChanged={(newRole) => setCurrentRole(newRole)}
+              canInitialize={currentRole !== "VIEWER"}
+              canRun={currentRole !== "VIEWER"}
+              focusComment={focusComment}
+              onClearFocusComment={() => setFocusComment(null)}
+            />
+          </FollowProvider>
+        </Room>
+      </RoomErrorBoundary>
+    </div>
   );
 }
 
@@ -1287,29 +1367,15 @@ function ProjectView({ id }: { id: string }) {
     const notFound = state.error instanceof ApiError && state.error.status === 404;
     return <div className="ide-error" role="alert">{notFound ? "Project not found, or you don't have access to it." : "Could not load the project."} {!notFound && <button onClick={reload}>Try again</button>}</div>;
   }
-  const project = state.data;
+
   return (
-    <div className="ide-shell">
-      <RoomErrorBoundary onRetry={() => setRoomAttempt((attempt) => attempt + 1)}>
-        <Room key={roomAttempt} projectId={project.id}>
-          <FollowProvider>
-            <ProjectHeader
-              project={project}
-              onNavigateToComment={(fileId, lineNumber) => setFocusComment({ fileId, lineNumber })}
-            />
-            <ConnectionOfflineBanner />
-            <CollaborativeWorkspace
-              projectId={project.id}
-              projectName={project.title}
-              canInitialize={project.role !== "VIEWER"}
-              canRun={project.role !== "VIEWER"}
-              focusComment={focusComment}
-              onClearFocusComment={() => setFocusComment(null)}
-            />
-          </FollowProvider>
-        </Room>
-      </RoomErrorBoundary>
-    </div>
+    <ProjectLoadedView
+      project={state.data}
+      roomAttempt={roomAttempt}
+      setRoomAttempt={setRoomAttempt}
+      focusComment={focusComment}
+      setFocusComment={setFocusComment}
+    />
   );
 }
 

@@ -1,4 +1,3 @@
-
 import { apiFetch } from "./client";
 import type { Role } from "./types";
 
@@ -48,5 +47,18 @@ export function removeMember(
   return apiFetch<void>(
     `${membersPath(projectId)}/${encodeURIComponent(userId)}`,
     { method: "DELETE" },
+  );
+}
+
+export function transferOwnership(
+  projectId: string,
+  newOwnerId: string,
+): Promise<void> {
+  return apiFetch<void>(
+    `/api/projects/${encodeURIComponent(projectId)}/transfer-ownership`,
+    {
+      method: "POST",
+      body: JSON.stringify({ newOwnerId }),
+    },
   );
 }

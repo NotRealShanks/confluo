@@ -1,4 +1,4 @@
-﻿package com.github.notrealshanks.confluobackend.dto;
+package com.github.notrealshanks.confluobackend.dto;
 
 import java.time.Instant;
 

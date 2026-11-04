@@ -111,6 +111,9 @@ public class MemberService {
         Role target = project.roleOf(targetUserId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Member not found"));
         if (target == Role.OWNER) {
+            if (callerId.equals(targetUserId)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Transfer ownership before leaving the project");
+            }
             throw new ResponseStatusException(HttpStatus.CONFLICT, "The owner can't be removed");
         }
 
@@ -129,6 +132,41 @@ public class MemberService {
                     isVoluntaryLeave ? ProjectActivityType.MEMBER_LEFT : ProjectActivityType.MEMBER_REMOVED,
                     isVoluntaryLeave ? null : targetUserId,
                     Map.of("role", target.name())
+            );
+        }
+    }
+
+    public void transferOwnership(String callerId, String projectId, String newOwnerId) {
+        if (callerId.equals(newOwnerId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot transfer ownership to yourself");
+        }
+
+        Project project = requireOwner(callerId, projectId);
+
+        Role targetRole = project.roleOf(newOwnerId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Target user is not a member of the project"));
+
+        List<ProjectMember> updatedMembers = project.getMembers().stream()
+                .map(m -> {
+                    if (m.userId().equals(callerId)) {
+                        return new ProjectMember(callerId, Role.EDITOR);
+                    }
+                    if (m.userId().equals(newOwnerId)) {
+                        return new ProjectMember(newOwnerId, Role.OWNER);
+                    }
+                    return m;
+                })
+                .toList();
+
+        saveMembers(project, updatedMembers);
+
+        if (projectActivityService != null) {
+            projectActivityService.recordActivity(
+                    projectId,
+                    callerId,
+                    ProjectActivityType.OWNERSHIP_TRANSFERRED,
+                    newOwnerId,
+                    Map.of("previousRole", targetRole.name())
             );
         }
     }

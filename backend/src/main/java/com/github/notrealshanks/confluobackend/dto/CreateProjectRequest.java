@@ -1,4 +1,4 @@
-﻿package com.github.notrealshanks.confluobackend.dto;
+package com.github.notrealshanks.confluobackend.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;

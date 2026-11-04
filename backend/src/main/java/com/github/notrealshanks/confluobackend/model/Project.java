@@ -1,4 +1,4 @@
-﻿package com.github.notrealshanks.confluobackend.model;
+package com.github.notrealshanks.confluobackend.model;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -25,13 +25,22 @@ public class Project {
 
     private String templateConfig;
 
+    private Instant deletedAt;
+
     // The owner is stored here with Role.OWNER; there is no separate ownerId to keep in sync
     private List<ProjectMember> members = new ArrayList<>();
 
     private Instant createdAt;
     private Instant updatedAt;
 
+    public boolean isDeleted() {
+        return deletedAt != null;
+    }
+
     public Optional<Role> roleOf(String userId) {
+        if (isDeleted()) {
+            return Optional.empty();
+        }
         return members.stream()
                 .filter(m -> m != null && m.userId() != null && m.userId().equals(userId))
                 .map(ProjectMember::role)

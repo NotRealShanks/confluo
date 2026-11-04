@@ -13,6 +13,7 @@ import org.springframework.web.server.ResponseStatusException;
 import com.github.notrealshanks.confluobackend.dto.CreateProjectRequest;
 import com.github.notrealshanks.confluobackend.dto.CreateShareLinkRequest;
 import com.github.notrealshanks.confluobackend.dto.AddMemberRequest;
+import com.github.notrealshanks.confluobackend.dto.TransferOwnershipRequest;
 import com.github.notrealshanks.confluobackend.security.GuestPrincipal;
 import com.github.notrealshanks.confluobackend.service.MemberService;
 import com.github.notrealshanks.confluobackend.service.ProjectService;
@@ -31,9 +32,15 @@ class GuestAuthorizationControllerTests {
                 () -> controller.create(guest, new CreateProjectRequest("new project")));
         ResponseStatusException listError = assertThrows(ResponseStatusException.class,
                 () -> controller.list(guest));
+        ResponseStatusException deleteError = assertThrows(ResponseStatusException.class,
+                () -> controller.delete(guest, "project-1"));
+        ResponseStatusException transferError = assertThrows(ResponseStatusException.class,
+                () -> controller.transferOwnership(guest, "project-1", new TransferOwnershipRequest("user-2")));
 
         assertEquals(HttpStatus.FORBIDDEN, createError.getStatusCode());
         assertEquals(HttpStatus.FORBIDDEN, listError.getStatusCode());
+        assertEquals(HttpStatus.FORBIDDEN, deleteError.getStatusCode());
+        assertEquals(HttpStatus.FORBIDDEN, transferError.getStatusCode());
     }
 
     @Test
