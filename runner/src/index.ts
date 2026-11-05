@@ -490,7 +490,7 @@ app.post("/v1/execute", async (req: Request, res: Response) => {
 });
 
 const PORT = Number(process.env.PORT) || 4000;
-const HOST = process.env.HOST || "127.0.0.1";
+const HOST = process.env.HOST || "0.0.0.0";
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
 
 if (isMain && process.env.NODE_ENV !== "test") {
