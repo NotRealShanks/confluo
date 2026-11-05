@@ -27,14 +27,17 @@ public class OAuth2LoginHandler implements AuthenticationSuccessHandler, Authent
 
     private final OAuthUserService oAuthUserService;
     private final JwtService jwtService;
+    private final com.github.notrealshanks.confluobackend.service.UserSessionService userSessionService;
     private final String frontendUrl;
 
     public OAuth2LoginHandler(
             OAuthUserService oAuthUserService,
             JwtService jwtService,
+            com.github.notrealshanks.confluobackend.service.UserSessionService userSessionService,
             @Value("${app.frontend-url:http://localhost:5173}") String frontendUrl) {
         this.oAuthUserService = oAuthUserService;
         this.jwtService = jwtService;
+        this.userSessionService = userSessionService;
         this.frontendUrl = frontendUrl;
     }
 
@@ -47,6 +50,7 @@ public class OAuth2LoginHandler implements AuthenticationSuccessHandler, Authent
         try {
             Profile profile = toProfile(token.getAuthorizedClientRegistrationId(), token.getPrincipal());
             User user = oAuthUserService.findOrCreate(profile);
+            userSessionService.issueSession(user, request, response);
             // Fragment keeps the token out of server logs and Referer headers
             response.sendRedirect(frontendUrl + "/oauth/callback#token=" + jwtService.generateToken(user));
         } catch (OAuthLoginException e) {

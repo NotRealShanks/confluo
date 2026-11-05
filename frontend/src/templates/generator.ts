@@ -18,7 +18,8 @@ export function initializeWorkspaceFromTemplate(
   doc: Y.Doc,
   canInitialize: boolean,
   templateId?: string | null,
-  templateConfig?: string | TemplateConfigOptions | null
+  templateConfig?: string | TemplateConfigOptions | null,
+  projectName?: string
 ): TemplateApplyResult {
   if (!canInitialize) {
     return { applied: false, entrypointFileId: null, createdNodeCount: 0 };
@@ -43,7 +44,7 @@ export function initializeWorkspaceFromTemplate(
   }
 
   const template = getTemplateById(templateId);
-  return applyTemplateToWorkspace(doc, template, parsedConfig);
+  return applyTemplateToWorkspace(doc, template, parsedConfig, projectName);
 }
 
 /**
@@ -53,7 +54,8 @@ export function initializeWorkspaceFromTemplate(
 export function applyTemplateToWorkspace(
   doc: Y.Doc,
   template: ProjectTemplate,
-  config?: TemplateConfigOptions
+  config?: TemplateConfigOptions,
+  projectName?: string
 ): TemplateApplyResult {
   const tree = doc.getMap("tree");
   const contents = doc.getMap("contents");
@@ -65,7 +67,7 @@ export function applyTemplateToWorkspace(
   }
 
   // Get finalized files (customized if config was provided)
-  const templateFiles = customizeTemplateFiles(template, config);
+  const templateFiles = customizeTemplateFiles(template, config, projectName);
 
   // Blank template: simply mark as initialized with empty tree
   if (templateFiles.length === 0) {

@@ -6,9 +6,11 @@ export type AuthStatus = "loading" | "authenticated" | "anonymous";
 export type AuthContextValue = {
   status: AuthStatus;
   user: User | null;
+  sessionEndedReason?: string | null;
+  clearSessionEndedReason?: () => void;
   // Resolves to true when the token produced a signed-in user
   signIn: (token: string) => Promise<boolean>;
-  signOut: () => void;
+  signOut: () => void | Promise<void>;
   updateUser: (user: User) => void;
 };
 

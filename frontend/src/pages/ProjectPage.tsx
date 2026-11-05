@@ -50,6 +50,7 @@ import { getFileCapability } from "../workspace/fileCapabilities";
 import { pathForNode, workspaceTextEntries } from "../workspace/fileManagement";
 import { BrowserPreview } from "../preview/BrowserPreview";
 import { ProjectChatPanel } from "../chat/ProjectChatPanel";
+import GitPanel from "../git/GitPanel";
 import { TerminalPanel } from "../terminal/TerminalPanel";
 import { LiveCursors } from "../collaborative/LiveCursors";
 import { useLiveCursorTracker } from "../collaborative/useLiveCursorTracker";
@@ -81,6 +82,8 @@ function ActivityBar({
   settingsOpen,
   onToggleChat,
   chatOpen,
+  onToggleGit,
+  gitOpen,
   isGuest = false,
 }: {
   onToggleExplorer: () => void;
@@ -89,6 +92,8 @@ function ActivityBar({
   settingsOpen?: boolean;
   onToggleChat?: () => void;
   chatOpen?: boolean;
+  onToggleGit?: () => void;
+  gitOpen?: boolean;
   isGuest?: boolean;
 }) {
   return (
@@ -127,11 +132,11 @@ function ActivityBar({
       </button>
       <button
         type="button"
-        className="is-disabled"
-        aria-label="Source Control (Unavailable)"
-        title="Source Control (Coming soon)"
-        aria-disabled="true"
-        disabled
+        className={gitOpen ? "is-active" : ""}
+        aria-label="Source Control"
+        title="Source Control"
+        aria-pressed={Boolean(gitOpen)}
+        onClick={onToggleGit}
       >
         <GitBranch size={21} />
       </button>
@@ -436,6 +441,7 @@ export function CollaborativeWorkspace({
   const { isSettingsOpen, toggleSettings } = useSettings();
   const [panelOpen, setPanelOpen] = useState(false);
   const [explorerOpen, setExplorerOpen] = useState(true);
+  const [sidebarView, setSidebarView] = useState<"files" | "git">("files");
   const [chatOpen, setChatOpen] = useState(false);
   const [isSplit, setIsSplit] = useState(false);
   const [splitFileId, setSplitFileId] = useState<string | null>(null);
@@ -580,7 +586,7 @@ export function CollaborativeWorkspace({
       if (!hasInitializedRef.current) {
         hasInitializedRef.current = true;
         if (templateId) {
-          const result = initializeWorkspaceFromTemplate(doc, canInitialize, templateId, templateConfig);
+          const result = initializeWorkspaceFromTemplate(doc, canInitialize, templateId, templateConfig, projectName);
           if (result.entrypointFileId) {
             dispatchTabs({ type: "select", fileId: result.entrypointFileId });
           }
@@ -784,8 +790,24 @@ export function CollaborativeWorkspace({
   return (
     <div ref={workspaceRef} className={`ide-workspace ${isResizingSidebar ? "is-resizing-sidebar" : ""}`}>
       <ActivityBar
-        explorerOpen={explorerOpen}
-        onToggleExplorer={() => setExplorerOpen((open) => !open)}
+        explorerOpen={explorerOpen && sidebarView === "files"}
+        onToggleExplorer={() => {
+          if (explorerOpen && sidebarView === "files") {
+            setExplorerOpen(false);
+          } else {
+            setExplorerOpen(true);
+            setSidebarView("files");
+          }
+        }}
+        gitOpen={explorerOpen && sidebarView === "git"}
+        onToggleGit={() => {
+          if (explorerOpen && sidebarView === "git") {
+            setExplorerOpen(false);
+          } else {
+            setExplorerOpen(true);
+            setSidebarView("git");
+          }
+        }}
         settingsOpen={isSettingsOpen}
         onToggleSettings={toggleSettings}
         chatOpen={chatOpen}
@@ -793,14 +815,18 @@ export function CollaborativeWorkspace({
         isGuest={isGuest}
       />
       {explorerOpen && <aside ref={sidebarRef} className="ide-sidebar" style={{ width: `${sidebarWidth}px` }}>
-        <WorkspaceExplorer
-          doc={doc}
-          projectId={projectId}
-          ready={ready}
-          selectedFileId={selectedFileId}
-          onSelectFile={selectFile}
-          createFileRequest={createFileRequest}
-        />
+        {sidebarView === "git" ? (
+          <GitPanel projectId={projectId} doc={doc} />
+        ) : (
+          <WorkspaceExplorer
+            doc={doc}
+            projectId={projectId}
+            ready={ready}
+            selectedFileId={selectedFileId}
+            onSelectFile={selectFile}
+            createFileRequest={createFileRequest}
+          />
+        )}
       </aside>}
       {explorerOpen && <div
         className="ide-sidebar-resize-handle"
@@ -1345,6 +1371,8 @@ function ProjectLoadedView({
               projectName={project.title}
               projectRole={currentRole}
               onRoleChanged={(newRole) => setCurrentRole(newRole)}
+              templateId={project.templateId}
+              templateConfig={project.templateConfig}
               canInitialize={currentRole !== "VIEWER"}
               canRun={currentRole !== "VIEWER"}
               focusComment={focusComment}

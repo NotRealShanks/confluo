@@ -24,9 +24,8 @@ const CATEGORIES: { id: TemplateCategory; label: string }[] = [
   { id: "all", label: "All Templates" },
   { id: "frontend", label: "Frontend" },
   { id: "backend", label: "Backend" },
-  { id: "fullstack", label: "Fullstack" },
   { id: "vanilla", label: "Vanilla" },
-  { id: "general", label: "General" },
+  { id: "general", label: "General & Languages" },
 ];
 
 export default function CreateProjectPage() {
@@ -35,7 +34,7 @@ export default function CreateProjectPage() {
   // Template selection state
   const [selectedCategory, setSelectedCategory] = useState<TemplateCategory>("all");
   const [templateSearch, setTemplateSearch] = useState("");
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("spring-boot");
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("react-ts");
 
   // Selected template object
   const template = useMemo(
@@ -44,15 +43,7 @@ export default function CreateProjectPage() {
   );
 
   // Common metadata
-  const [title, setTitle] = useState("my-application");
-
-  // Spring Boot specific config
-  const [groupId, setGroupId] = useState("com.example");
-  const [artifactId, setArtifactId] = useState("demo");
-  const [packageName, setPackageName] = useState("com.example.demo");
-  const [javaVersion, setJavaVersion] = useState("17");
-  const [bootVersion] = useState("3.3.0");
-  const [packaging, setPackaging] = useState("jar");
+  const [title, setTitle] = useState("my-react-app");
 
   // Node/Express specific config
   const [moduleType, setModuleType] = useState("module");
@@ -78,17 +69,32 @@ export default function CreateProjectPage() {
       setSelectedDeps([]);
     }
     // Set appropriate default title
-    if (id === "spring-boot") {
-      setTitle("my-spring-app");
-      setArtifactId("demo");
-      setGroupId("com.example");
-      setPackageName("com.example.demo");
-    } else if (id.includes("react")) {
+    if (id.includes("react")) {
       setTitle("my-react-app");
     } else if (id === "node-express") {
       setTitle("my-express-api");
-    } else if (id === "flask") {
-      setTitle("my-flask-app");
+    } else if (id === "node-ts") {
+      setTitle("my-node-app");
+    } else if (id === "vue") {
+      setTitle("my-vue-app");
+    } else if (id === "svelte") {
+      setTitle("my-svelte-app");
+    } else if (id === "solid") {
+      setTitle("my-solid-app");
+    } else if (id === "angular") {
+      setTitle("my-angular-app");
+    } else if (id === "html-css-js") {
+      setTitle("my-web-app");
+    } else if (id === "python") {
+      setTitle("my-python-app");
+    } else if (id === "cpp") {
+      setTitle("my-cpp-project");
+    } else if (id === "java") {
+      setTitle("my-java-app");
+    } else if (id === "rust") {
+      setTitle("my-rust-app");
+    } else if (id === "go") {
+      setTitle("my-go-app");
     } else if (id === "blank") {
       setTitle("untitled-project");
     }
@@ -154,14 +160,7 @@ export default function CreateProjectPage() {
       dependencies: selectedDeps,
     };
 
-    if (template.id === "spring-boot") {
-      config.groupId = groupId.trim() || "com.example";
-      config.artifactId = artifactId.trim() || "demo";
-      config.packageName = packageName.trim() || `${config.groupId}.${config.artifactId}`;
-      config.javaVersion = javaVersion;
-      config.bootVersion = bootVersion;
-      config.packaging = packaging;
-    } else if (template.id === "node-express") {
+    if (template.id === "node-express") {
       config.moduleType = moduleType;
       config.port = port;
     }
@@ -352,129 +351,11 @@ export default function CreateProjectPage() {
                   type="text"
                   required
                   value={title}
-                  onChange={(e) => {
-                    setTitle(e.target.value);
-                    if (template.id === "spring-boot") {
-                      const clean = e.target.value
-                        .toLowerCase()
-                        .replace(/[^a-z0-9_-]/g, "-")
-                        .replace(/-+/g, "-")
-                        .slice(0, 30);
-                      setArtifactId(clean || "demo");
-                      setPackageName(`${groupId}.${clean || "demo"}`.replace(/[^a-z0-9_.]/g, "_"));
-                    }
-                  }}
-                  placeholder="e.g. ecommerce-backend"
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="e.g. my-awesome-app"
                   className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3.5 py-2 font-mono text-xs text-white placeholder-zinc-500 focus:border-white focus:outline-none"
                 />
               </div>
-
-              {/* Template-Specific Form Fields */}
-              {template.id === "spring-boot" && (
-                <div className="pt-4 border-t border-[#27272a] space-y-4">
-                  <span className="block font-mono text-xs font-semibold text-zinc-200">
-                    Project Metadata (Spring Initializr / IntelliJ Spec)
-                  </span>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block font-mono text-[11px] text-zinc-400 mb-1">
-                        Group ID
-                      </label>
-                      <input
-                        type="text"
-                        value={groupId}
-                        onChange={(e) => {
-                          setGroupId(e.target.value);
-                          setPackageName(`${e.target.value}.${artifactId}`.replace(/[^a-z0-9_.]/g, "_"));
-                        }}
-                        className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 font-mono text-xs text-white focus:border-white focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block font-mono text-[11px] text-zinc-400 mb-1">
-                        Artifact ID
-                      </label>
-                      <input
-                        type="text"
-                        value={artifactId}
-                        onChange={(e) => {
-                          setArtifactId(e.target.value);
-                          setPackageName(`${groupId}.${e.target.value}`.replace(/[^a-z0-9_.]/g, "_"));
-                        }}
-                        className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 font-mono text-xs text-white focus:border-white focus:outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block font-mono text-[11px] text-zinc-400 mb-1">
-                      Package Name
-                    </label>
-                    <input
-                      type="text"
-                      value={packageName}
-                      onChange={(e) => setPackageName(e.target.value)}
-                      className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 font-mono text-xs text-white focus:border-white focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
-                    <div>
-                      <label className="block font-mono text-[11px] text-zinc-400 mb-1.5">
-                        Java Version
-                      </label>
-                      <div className="flex gap-1.5">
-                        {["17", "21"].map((ver) => (
-                          <button
-                            key={ver}
-                            type="button"
-                            onClick={() => setJavaVersion(ver)}
-                            className={`flex-1 py-1.5 rounded font-mono text-xs border transition-all ${
-                              javaVersion === ver
-                                ? "border-white bg-white text-black font-semibold"
-                                : "border-zinc-700 bg-zinc-900 text-zinc-400 hover:text-white"
-                            }`}
-                          >
-                            {ver} (LTS)
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block font-mono text-[11px] text-zinc-400 mb-1.5">
-                        Packaging
-                      </label>
-                      <div className="flex gap-1.5">
-                        {["jar", "war"].map((pkg) => (
-                          <button
-                            key={pkg}
-                            type="button"
-                            onClick={() => setPackaging(pkg)}
-                            className={`flex-1 py-1.5 rounded font-mono text-xs uppercase border transition-all ${
-                              packaging === pkg
-                                ? "border-white bg-white text-black font-semibold"
-                                : "border-zinc-700 bg-zinc-900 text-zinc-400 hover:text-white"
-                            }`}
-                          >
-                            {pkg}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block font-mono text-[11px] text-zinc-400 mb-1.5">
-                        Spring Boot
-                      </label>
-                      <div className="py-1.5 px-3 rounded font-mono text-xs border border-zinc-700 bg-zinc-900 text-zinc-300 text-center">
-                        v{bootVersion}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {/* Node / Express specific fields */}
               {template.id === "node-express" && (

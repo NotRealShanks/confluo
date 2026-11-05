@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { Link, Navigate, useSearchParams } from "react-router";
 import { login } from "../api/auth";
 import { useAuth } from "../auth/context";
 import { formValue, useAuthSubmit } from "../auth/useAuthSubmit";
 import AuthLayout from "../components/AuthLayout";
 import OAuthButtons from "../components/OAuthButtons";
+import SessionConflictModal from "../components/SessionConflictModal";
 import TextField from "../components/TextField";
 import { AlertCircle, ArrowRight } from "lucide-react";
 
@@ -21,11 +23,12 @@ const ERROR_MESSAGES: Record<string, string> = {
 export default function Login() {
   const { status } = useAuth();
   const [params] = useSearchParams();
-  const { submit, pending, formError, fieldErrors } = useAuthSubmit((data) =>
+  const [conflictResolved, setConflictResolved] = useState(false);
+  const { submit, pending, formError, fieldErrors, conflictData, clearConflict } = useAuthSubmit((data) =>
     login(formValue(data, "email").trim(), formValue(data, "password")),
   );
 
-  if (status === "authenticated") {
+  if (status === "authenticated" || conflictResolved) {
     return <Navigate to="/" replace />;
   }
 
@@ -94,6 +97,15 @@ export default function Login() {
           Create account
         </Link>
       </p>
+
+      {conflictData && (
+        <SessionConflictModal
+          confirmationToken={conflictData.confirmationToken}
+          activeSession={conflictData.activeSession}
+          onCancel={clearConflict}
+          onSuccess={() => setConflictResolved(true)}
+        />
+      )}
     </AuthLayout>
   );
 }

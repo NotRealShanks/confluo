@@ -9,7 +9,8 @@ import { useRoom, useSelf } from "@liveblocks/react/suspense";
 import { colorFor } from "./lib/color";
 import { safeCursorColor, safeCursorName } from "./lib/cursorCss";
 import { getYjsProviderForRoom } from "@liveblocks/yjs";
-import { getFileText, snapshot } from "./workspace/ops";
+import { getFileText, snapshot, createNode } from "./workspace/ops";
+import { useEditorRecovery, RecoveryBanner, RecoveryDiffModal } from "./recovery";
 import { languageForFilename } from "./workspace/language";
 import { downloadAsset } from "./api/assets";
 import { useSettings, registerMonacoThemes } from "./settings";
@@ -68,6 +69,61 @@ export default function Editor({
   const [pdfError, setPdfError] = useState<string | null>(null);
   const { settings, monacoTheme } = useSettings();
   const language = fileName ? languageForFilename(fileName) : "plaintext";
+
+  const [currentContent, setCurrentContent] = useState<string>(() => {
+    return fileId && doc ? getFileText(doc, fileId)?.toString() ?? "" : "";
+  });
+
+  useEffect(() => {
+    if (!doc || !fileId) {
+      setCurrentContent("");
+      return;
+    }
+    const yText = getFileText(doc, fileId);
+    if (!yText) return;
+    setCurrentContent(yText.toString());
+    const handler = () => {
+      setCurrentContent(yText.toString());
+    };
+    yText.observe(handler);
+    return () => {
+      yText.unobserve(handler);
+    };
+  }, [doc, fileId]);
+
+  const {
+    recoveredDraft,
+    showDiffModal,
+    openDiffModal,
+    closeDiffModal,
+    applyDraft,
+    restoreAsCopy,
+    discardDraft,
+  } = useEditorRecovery({
+    userId: selfId,
+    projectId,
+    fileId,
+    currentContent,
+    onApplyContent: (content) => {
+      if (!doc || !fileId) return;
+      doc.transact(() => {
+        const yText = getFileText(doc, fileId);
+        if (yText) {
+          yText.delete(0, yText.length);
+          yText.insert(0, content);
+        }
+      });
+    },
+    onCreateCopy: (copyName, content) => {
+      if (!doc || !fileId) return;
+      createNode(doc, {
+        type: "file",
+        name: copyName,
+        parentId: fileNode?.parentId ?? null,
+        content,
+      });
+    },
+  });
 
   // Reset mounted editor reference whenever the selected file changes so stale or
   // disposed instances are never accessed across file switches.
@@ -273,6 +329,14 @@ export default function Editor({
       {readOnly && (
         <p className="ide-readonly-notice">You have view-only access to this project.</p>
       )}
+      {recoveredDraft && (
+        <RecoveryBanner
+          timestamp={recoveredDraft.timestamp}
+          onPreviewDiff={openDiffModal}
+          onApply={applyDraft}
+          onDiscard={discardDraft}
+        />
+      )}
       {fileId && workspaceReady && fileNode?.kind === "binary" ? (
         pdfError ? (
           <div className="ide-empty-editor">{pdfError}</div>
@@ -388,6 +452,18 @@ export default function Editor({
             )}
           </div>
         </div>
+      )}
+      {showDiffModal && recoveredDraft && (
+        <RecoveryDiffModal
+          originalContent={currentContent}
+          recoveredContent={recoveredDraft.content}
+          fileName={fileName ?? fileId ?? "file"}
+          timestamp={recoveredDraft.timestamp}
+          onApply={applyDraft}
+          onRestoreAsCopy={restoreAsCopy}
+          onDiscard={discardDraft}
+          onClose={closeDiffModal}
+        />
       )}
     </div>
   );

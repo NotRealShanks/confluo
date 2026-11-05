@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import * as Y from "yjs";
 import { TEMPLATES, getTemplateById } from "./catalog";
 import { applyTemplateToWorkspace } from "./generator";
@@ -7,24 +7,34 @@ import { readRawNodes } from "../workspace/ops";
 import { LIMITS } from "../workspace/types";
 
 describe("Project Templates Catalog", () => {
-  it("contains all 9 required starter templates", () => {
+  it("contains ready-made starter templates including frameworks, SVG assets, packages, and language starters", () => {
     const ids = TEMPLATES.map((t) => t.id);
     expect(ids).toContain("blank");
     expect(ids).toContain("react-ts");
     expect(ids).toContain("react-js");
     expect(ids).toContain("angular");
     expect(ids).toContain("vue");
-    expect(ids).toContain("spring-boot");
-    expect(ids).toContain("flask");
+    expect(ids).toContain("svelte");
+    expect(ids).toContain("solid");
     expect(ids).toContain("node-express");
+    expect(ids).toContain("node-ts");
     expect(ids).toContain("html-css-js");
-    expect(TEMPLATES.length).toBe(9);
+    expect(ids).toContain("python");
+    expect(ids).toContain("cpp");
+    expect(ids).toContain("java");
+    expect(ids).toContain("rust");
+    expect(ids).toContain("go");
+    expect(ids).not.toContain("spring-boot");
+    expect(ids).not.toContain("flask");
+    expect(TEMPLATES.length).toBe(15);
   });
 
-  it("resolves template by ID with safe fallback to blank", () => {
+  it("resolves template by ID with safe fallback to blank and legacy fallback for older projects", () => {
     expect(getTemplateById("react-ts").id).toBe("react-ts");
     expect(getTemplateById("non-existent-id").id).toBe("blank");
     expect(getTemplateById(null).id).toBe("blank");
+    expect(getTemplateById("spring-boot").id).toBe("spring-boot");
+    expect(getTemplateById("flask").id).toBe("flask");
   });
 
   it("ensures every template satisfies workspace limits", () => {
@@ -92,7 +102,7 @@ describe("applyTemplateToWorkspace Generator", () => {
     // Content should be in contents map
     const appContent = doc.getMap("contents").get(appFile!.id);
     expect(appContent).toBeInstanceOf(Y.Text);
-    expect((appContent as Y.Text).toString()).toContain("React + TypeScript Starter");
+    expect((appContent as Y.Text).toString()).toContain("React 19 + TypeScript");
 
     // Entrypoint should match App.tsx
     expect(result.entrypointFileId).toBe(appFile?.id);
@@ -108,62 +118,78 @@ describe("applyTemplateToWorkspace Generator", () => {
     const initialSize = doc.getMap("tree").size;
 
     // Second apply with another template
-    const flask = getTemplateById("flask");
-    const res2 = applyTemplateToWorkspace(doc, flask);
+    const vue = getTemplateById("vue");
+    const res2 = applyTemplateToWorkspace(doc, vue);
     expect(res2.applied).toBe(false);
     expect(doc.getMap("tree").size).toBe(initialSize); // Unchanged
   });
 
-  it("generates deeply nested Spring Boot structure with valid acyclic paths", () => {
+  it("generates and customizes Vue 3 template files with dependencies", () => {
     const doc = new Y.Doc();
-    const spring = getTemplateById("spring-boot");
-    const result = applyTemplateToWorkspace(doc, spring);
-
-    expect(result.applied).toBe(true);
-    const view = buildTree(readRawNodes(doc));
-    expect(view.nodes.size).toBe(result.createdNodeCount);
-
-    // Verify DemoApplication.java is reachable
-    const demoApp = Array.from(view.nodes.values()).find(
-      (n) => n.name === "DemoApplication.java"
-    );
-    expect(demoApp).toBeDefined();
-    expect(demoApp?.type).toBe("file");
-  });
-
-  it("customizes Spring Boot pom.xml and packages when configuration is provided", () => {
-    const doc = new Y.Doc();
-    const spring = getTemplateById("spring-boot");
-    const result = applyTemplateToWorkspace(doc, spring, {
-      groupId: "org.acme",
-      artifactId: "microservice",
-      packageName: "org.acme.microservice",
-      javaVersion: "21",
-      bootVersion: "3.3.0",
-      dependencies: ["web", "data-jpa", "postgresql", "lombok"],
-    });
+    const vue = getTemplateById("vue");
+    const result = applyTemplateToWorkspace(doc, vue, {
+      dependencies: ["pinia", "axios"],
+    }, "my-vue-dashboard");
 
     expect(result.applied).toBe(true);
     const raw = readRawNodes(doc);
     const view = buildTree(raw);
 
-    const pomNode = Array.from(view.nodes.values()).find((n) => n.name === "pom.xml");
-    expect(pomNode).toBeDefined();
+    const pkgNode = Array.from(view.nodes.values()).find((n) => n.name === "package.json");
+    expect(pkgNode).toBeDefined();
 
-    const pomText = doc.getMap("contents").get(pomNode!.id)?.toString();
-    expect(pomText).toContain("<groupId>org.acme</groupId>");
-    expect(pomText).toContain("<artifactId>microservice</artifactId>");
-    expect(pomText).toContain("<java.version>21</java.version>");
-    expect(pomText).toContain("spring-boot-starter-web");
-    expect(pomText).toContain("spring-boot-starter-data-jpa");
-    expect(pomText).toContain("postgresql");
-    expect(pomText).toContain("lombok");
+    const pkgText = doc.getMap("contents").get(pkgNode!.id)?.toString();
+    const parsed = JSON.parse(pkgText!);
+    expect(parsed.name).toBe("my-vue-dashboard");
+    expect(parsed.dependencies["pinia"]).toBeDefined();
+    expect(parsed.dependencies["axios"]).toBeDefined();
+  });
 
-    // Application.java should be in org/acme/microservice
-    const appNode = Array.from(view.nodes.values()).find((n) => n.name === "Application.java");
-    expect(appNode).toBeDefined();
-    const appText = doc.getMap("contents").get(appNode!.id)?.toString();
-    expect(appText).toContain("package org.acme.microservice;");
+  it("generates and customizes Angular template files with dependencies", () => {
+    const doc = new Y.Doc();
+    const angular = getTemplateById("angular");
+    const result = applyTemplateToWorkspace(doc, angular, {
+      dependencies: ["rxjs"],
+    }, "my-angular-app");
+
+    expect(result.applied).toBe(true);
+    const raw = readRawNodes(doc);
+    const view = buildTree(raw);
+
+    const pkgNode = Array.from(view.nodes.values()).find((n) => n.name === "package.json");
+    expect(pkgNode).toBeDefined();
+
+    const pkgText = doc.getMap("contents").get(pkgNode!.id)?.toString();
+    const parsed = JSON.parse(pkgText!);
+    expect(parsed.name).toBe("my-angular-app");
+    expect(parsed.dependencies["rxjs"]).toBeDefined();
+  });
+
+  it("customizes Node/Express template with dependencies and module type", () => {
+    const doc = new Y.Doc();
+    const node = getTemplateById("node-express");
+    const result = applyTemplateToWorkspace(doc, node, {
+      dependencies: ["cors", "dotenv", "mongoose"],
+      moduleType: "module",
+      port: "8080",
+    }, "my-api");
+
+    expect(result.applied).toBe(true);
+    const raw = readRawNodes(doc);
+    const view = buildTree(raw);
+
+    const pkgNode = Array.from(view.nodes.values()).find((n) => n.name === "package.json");
+    expect(pkgNode).toBeDefined();
+    const parsed = JSON.parse(doc.getMap("contents").get(pkgNode!.id)!.toString());
+    expect(parsed.name).toBe("my-api");
+    expect(parsed.dependencies["cors"]).toBeDefined();
+    expect(parsed.dependencies["dotenv"]).toBeDefined();
+    expect(parsed.dependencies["mongoose"]).toBeDefined();
+
+    const serverNode = Array.from(view.nodes.values()).find((n) => n.name === "index.js");
+    expect(serverNode).toBeDefined();
+    const serverText = doc.getMap("contents").get(serverNode!.id)!.toString();
+    expect(serverText).toContain("8080");
   });
 
   it("customizes React package.json with chosen dependencies", () => {
@@ -185,5 +211,38 @@ describe("applyTemplateToWorkspace Generator", () => {
     expect(parsed.dependencies["axios"]).toBeDefined();
     expect(parsed.dependencies["zustand"]).toBeDefined();
     expect(parsed.dependencies["zod"]).toBeDefined();
+  });
+
+  it("includes ready-made SVG image assets in React, Svelte, and Vue templates", () => {
+    const doc = new Y.Doc();
+    const react = getTemplateById("react-ts");
+    applyTemplateToWorkspace(doc, react);
+
+    const raw = readRawNodes(doc);
+    const view = buildTree(raw);
+
+    const viteSvg = Array.from(view.nodes.values()).find((n) => n.name === "vite.svg");
+    const reactSvg = Array.from(view.nodes.values()).find((n) => n.name === "react.svg");
+    expect(viteSvg).toBeDefined();
+    expect(reactSvg).toBeDefined();
+
+    const svgContent = doc.getMap("contents").get(viteSvg!.id)?.toString();
+    expect(svgContent).toContain("<svg");
+  });
+
+  it("initializes multi-language Python starter with utils and entrypoint", () => {
+    const doc = new Y.Doc();
+    const py = getTemplateById("python");
+    const result = applyTemplateToWorkspace(doc, py);
+
+    expect(result.applied).toBe(true);
+    const raw = readRawNodes(doc);
+    const view = buildTree(raw);
+
+    const mainPy = Array.from(view.nodes.values()).find((n) => n.name === "main.py");
+    const utilsPy = Array.from(view.nodes.values()).find((n) => n.name === "utils.py");
+    expect(mainPy).toBeDefined();
+    expect(utilsPy).toBeDefined();
+    expect(result.entrypointFileId).toBe(mainPy?.id);
   });
 });

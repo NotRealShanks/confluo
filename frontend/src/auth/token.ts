@@ -1,26 +1,18 @@
-const TOKEN_KEY = "confluo.token";
+let inMemoryAccessToken: string | null = null;
 
-// Storage can be unavailable (private mode, blocked cookies), so every access is guarded
 export function getToken(): string | null {
-  try {
-    return localStorage.getItem(TOKEN_KEY);
-  } catch {
-    return null;
-  }
+  return inMemoryAccessToken;
 }
 
-export function setToken(token: string): void {
-  try {
-    localStorage.setItem(TOKEN_KEY, token);
-  } catch {
-    // Token stays in memory only for this page load
-  }
+export function setToken(token: string | null): void {
+  inMemoryAccessToken = token;
 }
 
 export function clearToken(): void {
+  inMemoryAccessToken = null;
   try {
-    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem("confluo.token");
   } catch {
-    // Nothing to clear
+    // Ignore private mode or storage quota errors
   }
 }

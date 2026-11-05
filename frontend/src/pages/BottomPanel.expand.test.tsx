@@ -221,15 +221,15 @@ describe("Terminal / BottomPanel Expansion, Layout & Accessibility", () => {
 
     // Search, Source Control, and Run and Debug are disabled placeholders
     const searchBtn = screen.getByLabelText("Search (Unavailable)");
-    const sourceControlBtn = screen.getByLabelText("Source Control (Unavailable)");
+    const sourceControlBtn = screen.getByLabelText("Source Control");
     const runDebugBtn = screen.getByLabelText("Run and Debug (Unavailable)");
 
     expect(searchBtn.hasAttribute("disabled")).toBe(true);
-    expect(sourceControlBtn.hasAttribute("disabled")).toBe(true);
+    expect(sourceControlBtn.hasAttribute("disabled")).toBe(false);
     expect(runDebugBtn.hasAttribute("disabled")).toBe(true);
 
     expect(searchBtn.getAttribute("title")).toMatch(/Coming soon/i);
-    expect(sourceControlBtn.getAttribute("title")).toMatch(/Coming soon/i);
+    expect(sourceControlBtn.getAttribute("title")).toBe("Source Control");
     expect(runDebugBtn.getAttribute("title")).toMatch(/Debugger unavailable/i);
   });
 

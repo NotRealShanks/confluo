@@ -92,4 +92,35 @@ public class JwtService {
         TokenClaims claims = parseToken(token);
         return claims == null || claims.guest() ? null : claims.subject();
     }
+
+    public String generateSessionOverrideToken(String userId, String email) {
+        Date now = new Date();
+        return Jwts.builder()
+                .subject(userId)
+                .claim("kind", "session_override")
+                .claim("email", email)
+                .issuedAt(now)
+                .expiration(new Date(now.getTime() + 300000))
+                .signWith(key)
+                .compact();
+    }
+
+    public String validateSessionOverrideToken(String token) {
+        if (token == null || token.isBlank()) {
+            return null;
+        }
+        try {
+            Claims claims = Jwts.parser()
+                    .verifyWith(key)
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+            if ("session_override".equals(claims.get("kind", String.class))) {
+                return claims.getSubject();
+            }
+            return null;
+        } catch (JwtException | IllegalArgumentException e) {
+            return null;
+        }
+    }
 }

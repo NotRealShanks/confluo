@@ -191,7 +191,8 @@ export function BrowserPreview({
 
   const handleOpenInNewTab = useCallback(() => {
     try {
-      const blob = new Blob([bundleResult.html], { type: "text/html" });
+      const sandboxedHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="connect-src 'none';"><title>Preview</title><style>html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#fff;}</style></head><body><iframe sandbox="allow-scripts allow-modals allow-forms" srcdoc="${bundleResult.html.replace(/"/g, "&quot;")}" style="width:100%;height:100%;border:none;"></iframe></body></html>`;
+      const blob = new Blob([sandboxedHtml], { type: "text/html" });
       const blobUrl = URL.createObjectURL(blob);
       const newWindow = window.open(blobUrl, "_blank");
       if (!newWindow) {
