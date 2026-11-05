@@ -42,3 +42,4 @@ services:
 volumes:
   git-data:
     driver: local
+
