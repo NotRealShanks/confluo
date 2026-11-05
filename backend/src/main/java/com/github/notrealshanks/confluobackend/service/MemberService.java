@@ -36,7 +36,7 @@ public class MemberService {
     private final ProjectActivityService projectActivityService;
 
     public List<MemberResponse> list(String callerId, String projectId) {
-        Project project = requireOwner(callerId, projectId);
+        Project project = projectService.requireAccess(callerId, projectId).project();
         List<String> ids = project.getMembers().stream().map(ProjectMember::userId).toList();
         Map<String, User> users = userRepository.findAllById(ids).stream()
                 .collect(Collectors.toMap(User::getId, Function.identity()));
@@ -68,6 +68,15 @@ public class MemberService {
             );
         }
 
+        if (liveblocksAuthService != null) {
+            liveblocksAuthService.notifyProjectInvited(
+                    target.getId(),
+                    callerId,
+                    projectId,
+                    project.getTitle(),
+                    request.role());
+        }
+
         return toResponse(member, target);
     }
 
@@ -97,6 +106,15 @@ public class MemberService {
             );
         }
 
+        if (liveblocksAuthService != null) {
+            liveblocksAuthService.notifyProjectRoleChanged(
+                    targetUserId,
+                    callerId,
+                    projectId,
+                    project.getTitle(),
+                    role);
+        }
+
         return toResponse(updated, userRepository.findById(targetUserId).orElse(null));
     }
 
@@ -122,6 +140,13 @@ public class MemberService {
         // Revoke active Liveblocks session to terminate connection
         if (liveblocksAuthService != null) {
             liveblocksAuthService.revokeRoomAccess(projectId, targetUserId);
+            if (!callerId.equals(targetUserId)) {
+                liveblocksAuthService.notifyMemberRemoved(
+                        targetUserId,
+                        callerId,
+                        projectId,
+                        project.getTitle());
+            }
         }
 
         if (projectActivityService != null) {
@@ -160,6 +185,14 @@ public class MemberService {
 
         saveMembers(project, updatedMembers);
 
+        if (liveblocksAuthService != null) {
+            liveblocksAuthService.notifyOwnershipTransferred(
+                    newOwnerId,
+                    callerId,
+                    projectId,
+                    project.getTitle());
+        }
+
         if (projectActivityService != null) {
             projectActivityService.recordActivity(
                     projectId,
@@ -171,46 +204,41 @@ public class MemberService {
         }
     }
 
+    public Role roleOf(String userId, String projectId) {
+        Access access = projectService.requireAccess(userId, projectId);
+        return access.role();
+    }
+
     public void acceptInvitation(String callerId, String projectId) {
-        Access access = projectService.requireAccess(callerId, projectId);
-        if (projectActivityService != null) {
-            projectActivityService.recordActivity(
-                    projectId,
-                    callerId,
-                    ProjectActivityType.MEMBER_JOINED,
-                    null,
-                    Map.of("role", access.role().name())
-            );
-        }
-    }
-
-    // Non-members get 404 from requireAccess; members without the right role get 403
-    private Project requireOwner(String callerId, String projectId) {
-        Access access = projectService.requireAccess(callerId, projectId);
-        if (!access.role().canManageMembers()) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the owner can manage members");
-        }
-        return access.project();
-    }
-
-    private static void requireAssignable(Role role) {
-        if (role == Role.OWNER) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Role must be EDITOR or VIEWER");
-        }
+        projectService.requireAccess(callerId, projectId);
     }
 
     private void saveMembers(Project project, List<ProjectMember> members) {
-        project.setMembers(new ArrayList<>(members));
+        project.setMembers(members);
         project.setUpdatedAt(Instant.now());
         projectRepository.save(project);
     }
 
-    // user is null if the account was deleted after being added
+    private static void requireAssignable(Role role) {
+        if (role == null || role == Role.OWNER) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Role must be EDITOR or VIEWER");
+        }
+    }
+
+    private Project requireOwner(String callerId, String projectId) {
+        Access access = projectService.requireAccess(callerId, projectId);
+        if (!access.role().canManageMembers()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the project owner can manage members");
+        }
+        return access.project();
+    }
+
     private static MemberResponse toResponse(ProjectMember member, User user) {
         return new MemberResponse(
                 member.userId(),
-                user == null ? "Unknown user" : user.getName(),
-                user == null ? null : user.getEmail(),
-                member.role());
+                user != null ? user.getName() : null,
+                user != null ? user.getEmail() : null,
+                member.role()
+        );
     }
 }

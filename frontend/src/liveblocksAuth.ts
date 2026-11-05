@@ -6,12 +6,37 @@ type TokenResponse = { token: string };
 export function makeAuthEndpoint(projectId: string, accessToken?: string) {
   return async () => {
     try {
-      return await apiFetch<TokenResponse>("/api/liveblocks/auth", {
-        method: "POST",
-        body: JSON.stringify({ room: projectId }),
-      }, accessToken);
+      return await apiFetch<TokenResponse>(
+        "/api/liveblocks/auth",
+        {
+          method: "POST",
+          body: JSON.stringify({ room: projectId }),
+        },
+        accessToken,
+      );
     } catch (error) {
       // Access problems are final; anything else may be transient, so let the client retry
+      if (error instanceof ApiError && [401, 403, 404].includes(error.status)) {
+        return { error: "forbidden", reason: error.message };
+      }
+      throw error;
+    }
+  };
+}
+
+// User-scoped session for inbox notifications across the dashboard and global shell
+export function makeUserAuthEndpoint(accessToken?: string) {
+  return async () => {
+    try {
+      return await apiFetch<TokenResponse>(
+        "/api/liveblocks/auth",
+        {
+          method: "POST",
+          body: JSON.stringify({}),
+        },
+        accessToken,
+      );
+    } catch (error) {
       if (error instanceof ApiError && [401, 403, 404].includes(error.status)) {
         return { error: "forbidden", reason: error.message };
       }

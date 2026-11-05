@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { MemoryRouter } from "react-router";
 import { InboxNotificationMenu } from "./InboxNotificationMenu";
 
 const mockMarkInboxNotificationAsRead = vi.fn();
@@ -8,6 +9,7 @@ const mockMarkAllInboxNotificationsAsRead = vi.fn();
 const mockDeleteInboxNotification = vi.fn();
 
 vi.mock("@liveblocks/react/suspense", () => ({
+  LiveblocksProvider: ({ children }: { children: React.ReactNode }) => children,
   useInboxNotifications: () => ({
     inboxNotifications: [
       {
@@ -51,6 +53,7 @@ vi.mock("@liveblocks/react/suspense", () => ({
   useMarkInboxNotificationAsRead: () => mockMarkInboxNotificationAsRead,
   useMarkAllInboxNotificationsAsRead: () => mockMarkAllInboxNotificationsAsRead,
   useDeleteInboxNotification: () => mockDeleteInboxNotification,
+  useIsInsideRoom: () => true,
 }));
 
 describe("InboxNotificationMenu", () => {
@@ -60,7 +63,11 @@ describe("InboxNotificationMenu", () => {
   });
 
   it("renders bell button with unread count badge", () => {
-    render(<InboxNotificationMenu onNavigateToComment={vi.fn()} />);
+    render(
+      <MemoryRouter>
+        <InboxNotificationMenu onNavigateToComment={vi.fn()} />
+      </MemoryRouter>
+    );
 
     const bellBtn = screen.getByRole("button", { name: /Inbox notifications/i });
     expect(bellBtn).toBeDefined();
@@ -68,7 +75,11 @@ describe("InboxNotificationMenu", () => {
   });
 
   it("opens popover menu and displays notifications list", () => {
-    render(<InboxNotificationMenu onNavigateToComment={vi.fn()} />);
+    render(
+      <MemoryRouter>
+        <InboxNotificationMenu onNavigateToComment={vi.fn()} />
+      </MemoryRouter>
+    );
 
     const bellBtn = screen.getByRole("button", { name: /Inbox notifications/i });
     fireEvent.click(bellBtn);
@@ -80,7 +91,11 @@ describe("InboxNotificationMenu", () => {
 
   it("marks notification as read and navigates to file and line on click", () => {
     const handleNavigate = vi.fn();
-    render(<InboxNotificationMenu onNavigateToComment={handleNavigate} />);
+    render(
+      <MemoryRouter>
+        <InboxNotificationMenu onNavigateToComment={handleNavigate} />
+      </MemoryRouter>
+    );
 
     const bellBtn = screen.getByRole("button", { name: /Inbox notifications/i });
     fireEvent.click(bellBtn);

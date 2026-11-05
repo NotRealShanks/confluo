@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { logout as apiLogout } from "../api/auth";
-import { ApiError, API_URL, apiFetch, silentRefresh } from "../api/client";
+import { ApiError, API_URL, apiFetch, setCsrfToken, silentRefresh } from "../api/client";
 import type { User } from "../api/types";
 import { AuthContext, type AuthContextValue, type AuthStatus } from "./context";
 import { clearToken, getToken, setToken } from "./token";
@@ -105,6 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Best-effort logout
     }
     clearToken();
+    setCsrfToken(null);
     setUser(null);
     setStatus("anonymous");
   }, []);

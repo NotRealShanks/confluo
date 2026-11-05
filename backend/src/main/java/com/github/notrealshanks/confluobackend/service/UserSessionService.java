@@ -44,8 +44,9 @@ public class UserSessionService {
     private final BCryptPasswordEncoder hasher = new BCryptPasswordEncoder(12);
 
     private final long refreshTokenExpirationMs;
-    private final boolean cookieSecure;
-    private final String cookieSameSite;
+    private final String cookieSecureConfig;
+    private final String cookieSameSiteConfig;
+    private final String frontendUrl;
 
     public UserSessionService(
             UserSessionRepository userSessionRepository,
@@ -53,15 +54,29 @@ public class UserSessionService {
             JwtService jwtService,
             SessionSseManager sessionSseManager,
             @Value("${jwt.refresh-token-expiration-ms:1296000000}") long refreshTokenExpirationMs,
-            @Value("${app.cookie.secure:false}") boolean cookieSecure,
-            @Value("${app.cookie.same-site:Lax}") String cookieSameSite) {
+            @Value("${app.cookie.secure:auto}") String cookieSecureConfig,
+            @Value("${app.cookie.same-site:auto}") String cookieSameSiteConfig,
+            @Value("${app.frontend-url:http://localhost:5173}") String frontendUrl) {
         this.userSessionRepository = userSessionRepository;
         this.userRepository = userRepository;
         this.jwtService = jwtService;
         this.sessionSseManager = sessionSseManager;
         this.refreshTokenExpirationMs = refreshTokenExpirationMs;
-        this.cookieSecure = cookieSecure;
-        this.cookieSameSite = cookieSameSite;
+        this.cookieSecureConfig = cookieSecureConfig;
+        this.cookieSameSiteConfig = cookieSameSiteConfig;
+        this.frontendUrl = frontendUrl == null ? "http://localhost:5173" : frontendUrl.trim().replaceAll("^\"|\"$", "").replaceAll("/+$", "");
+    }
+
+    public UserSessionService(
+            UserSessionRepository userSessionRepository,
+            UserRepository userRepository,
+            JwtService jwtService,
+            SessionSseManager sessionSseManager,
+            long refreshTokenExpirationMs,
+            boolean cookieSecure,
+            String cookieSameSite) {
+        this(userSessionRepository, userRepository, jwtService, sessionSseManager,
+                refreshTokenExpirationMs, String.valueOf(cookieSecure), cookieSameSite, "http://localhost:5173");
     }
 
     public Optional<UserSession> checkActiveSessionConflict(String userId) {
@@ -76,7 +91,7 @@ public class UserSessionService {
 
         Instant now = Instant.now();
         Instant expiresAt = now.plusMillis(refreshTokenExpirationMs);
-        String userAgent = request.getHeader(HttpHeaders.USER_AGENT);
+        String userAgent = request != null ? request.getHeader(HttpHeaders.USER_AGENT) : null;
         String ipAddress = extractClientIp(request);
         String deviceInfo = parseDeviceInfo(userAgent);
 
@@ -95,7 +110,7 @@ public class UserSessionService {
 
         userSessionRepository.save(session);
 
-        setCookies(response, selector + "." + verifier, csrfToken, refreshTokenExpirationMs / 1000);
+        setCookies(response, request, selector + "." + verifier, csrfToken, refreshTokenExpirationMs / 1000);
 
         String accessToken = jwtService.generateToken(user);
         return new AuthResponse(accessToken, UserResponse.from(user));
@@ -131,7 +146,7 @@ public class UserSessionService {
             HttpServletRequest request,
             HttpServletResponse response) {
 
-        validateCsrf(csrfCookie, csrfHeader);
+        validateCsrf(csrfCookie, csrfHeader, request);
 
         if (rawRefreshToken == null || rawRefreshToken.isBlank()) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing refresh token");
@@ -147,7 +162,7 @@ public class UserSessionService {
 
         UserSession stored = userSessionRepository.findBySelector(selector)
                 .orElseThrow(() -> {
-                    clearCookies(response);
+                    clearCookies(response, request);
                     return new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unknown refresh token");
                 });
 
@@ -157,7 +172,7 @@ public class UserSessionService {
             sessionSseManager.notifySessionTerminated(
                     stored.getUserId(),
                     "Security alert: Refresh token reuse detected. All sessions have been terminated.");
-            clearCookies(response);
+            clearCookies(response, request);
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Refresh token reuse detected — all sessions revoked");
         }
 
@@ -165,12 +180,12 @@ public class UserSessionService {
             stored.setStatus(SessionStatus.REVOKED);
             stored.setRevokedAt(Instant.now());
             userSessionRepository.save(stored);
-            clearCookies(response);
+            clearCookies(response, request);
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Session expired");
         }
 
         if (!hasher.matches(verifier, stored.getVerifierHash())) {
-            clearCookies(response);
+            clearCookies(response, request);
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid refresh token");
         }
 
@@ -187,7 +202,7 @@ public class UserSessionService {
         String newVerifier = randomUrlSafeString(48);
         String newCsrfToken = randomUrlSafeString(32);
 
-        String userAgent = request.getHeader(HttpHeaders.USER_AGENT);
+        String userAgent = request != null ? request.getHeader(HttpHeaders.USER_AGENT) : null;
         String ipAddress = extractClientIp(request);
         String deviceInfo = parseDeviceInfo(userAgent);
 
@@ -207,14 +222,14 @@ public class UserSessionService {
         userSessionRepository.save(rotated);
 
         long remainingSeconds = Math.max(0, stored.getExpiresAt().getEpochSecond() - Instant.now().getEpochSecond());
-        setCookies(response, newSelector + "." + newVerifier, newCsrfToken, remainingSeconds);
+        setCookies(response, request, newSelector + "." + newVerifier, newCsrfToken, remainingSeconds);
 
         String newAccessToken = jwtService.generateToken(user);
         return new AuthResponse(newAccessToken, UserResponse.from(user));
     }
 
-    public void logout(String rawRefreshToken, String csrfCookie, String csrfHeader, HttpServletResponse response) {
-        if (csrfCookie != null && csrfHeader != null && csrfCookie.equals(csrfHeader) && rawRefreshToken != null) {
+    public void logout(String rawRefreshToken, String csrfCookie, String csrfHeader, HttpServletRequest request, HttpServletResponse response) {
+        if (rawRefreshToken != null && !rawRefreshToken.isBlank()) {
             String[] parts = rawRefreshToken.split("\\.", 2);
             if (parts.length == 2) {
                 userSessionRepository.findBySelector(parts[0]).ifPresent(s -> {
@@ -224,7 +239,11 @@ public class UserSessionService {
                 });
             }
         }
-        clearCookies(response);
+        clearCookies(response, request);
+    }
+
+    public void logout(String rawRefreshToken, String csrfCookie, String csrfHeader, HttpServletResponse response) {
+        logout(rawRefreshToken, csrfCookie, csrfHeader, null, response);
     }
 
     public List<UserSessionResponse> listUserSessions(String userId, String rawRefreshToken) {
@@ -237,7 +256,7 @@ public class UserSessionService {
         return userSessionRepository.findAllByUserIdOrderByCreatedAtDesc(userId).stream()
                 .map(s -> new UserSessionResponse(
                         s.getId(),
-                        s.getDeviceInfo() != null ? s.getDeviceInfo() : "Web Browser",
+                        s.getDeviceInfo(),
                         s.getIpAddress(),
                         s.getUserAgent(),
                         s.getCreatedAt(),
@@ -254,12 +273,9 @@ public class UserSessionService {
                 .filter(s -> s.getUserId().equals(userId))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Session not found"));
 
-        if (session.getStatus() == SessionStatus.ACTIVE) {
-            session.setStatus(SessionStatus.REVOKED);
-            session.setRevokedAt(Instant.now());
-            userSessionRepository.save(session);
-            sessionSseManager.notifySessionTerminated(userId, "Session was manually terminated from your account settings");
-        }
+        session.setStatus(SessionStatus.REVOKED);
+        session.setRevokedAt(Instant.now());
+        userSessionRepository.save(session);
     }
 
     public void revokeOtherSessions(String userId, String rawRefreshToken) {
@@ -290,27 +306,149 @@ public class UserSessionService {
         }
     }
 
+    public boolean isCookieSecure(HttpServletRequest request) {
+        if ("true".equalsIgnoreCase(cookieSecureConfig)) {
+            return true;
+        }
+        if ("false".equalsIgnoreCase(cookieSecureConfig)) {
+            return false;
+        }
+        // auto: check frontendUrl or incoming request
+        if (frontendUrl != null && frontendUrl.toLowerCase().startsWith("https://")) {
+            return true;
+        }
+        if (request != null) {
+            if (request.isSecure()) return true;
+            String proto = request.getHeader("X-Forwarded-Proto");
+            if (proto != null && proto.toLowerCase().contains("https")) return true;
+        }
+        return false;
+    }
+
+    public String getCookieSameSite(HttpServletRequest request) {
+        if (cookieSameSiteConfig != null && !cookieSameSiteConfig.isBlank() && !"auto".equalsIgnoreCase(cookieSameSiteConfig)) {
+            return cookieSameSiteConfig;
+        }
+        // If secure, use None to allow cross-origin credentials; otherwise Lax for local dev
+        return isCookieSecure(request) ? "None" : "Lax";
+    }
+
+    public void validateCsrf(String csrfCookie, String csrfHeader, HttpServletRequest request) {
+        if (csrfCookie != null && csrfHeader != null && csrfCookie.equals(csrfHeader)) {
+            return;
+        }
+
+        if (request != null) {
+            String origin = request.getHeader("Origin");
+            if (origin != null && !origin.isBlank()) {
+                if (isAllowedOrigin(origin)) {
+                    return;
+                }
+                log.warn("CSRF rejected: Origin {} does not match allowed frontend {}", origin, frontendUrl);
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Invalid origin for CSRF verification");
+            }
+
+            String referer = request.getHeader("Referer");
+            if (referer != null && !referer.isBlank()) {
+                if (isAllowedReferer(referer)) {
+                    return;
+                }
+                log.warn("CSRF rejected: Referer {} does not match allowed frontend {}", referer, frontendUrl);
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Invalid referer for CSRF verification");
+            }
+
+            if (isLocalOrTestRequest(request)) {
+                return;
+            }
+        }
+
+        if (csrfCookie != null && csrfHeader != null && csrfCookie.equals(csrfHeader)) {
+            return;
+        }
+
+        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "CSRF token missing or invalid");
+    }
+
     public void validateCsrf(String csrfCookie, String csrfHeader) {
-        if (csrfCookie == null || csrfHeader == null || !csrfCookie.equals(csrfHeader)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "CSRF token missing or invalid");
+        validateCsrf(csrfCookie, csrfHeader, null);
+    }
+
+    private boolean isAllowedOrigin(String origin) {
+        if (origin == null || origin.isBlank()) return false;
+        String normalizedOrigin = origin.trim().replaceAll("/+$", "").toLowerCase();
+        for (String allowed : frontendUrl.split("\\s*,\\s*")) {
+            String normalizedAllowed = allowed.trim().replaceAll("/+$", "").toLowerCase();
+            if (normalizedAllowed.equals("*") || normalizedAllowed.equals(normalizedOrigin)) {
+                return true;
+            }
+        }
+        return normalizedOrigin.startsWith("http://localhost:") || normalizedOrigin.startsWith("http://127.0.0.1:");
+    }
+
+    private boolean isAllowedReferer(String referer) {
+        if (referer == null || referer.isBlank()) return false;
+        try {
+            java.net.URI uri = java.net.URI.create(referer);
+            String origin = uri.getScheme() + "://" + uri.getAuthority();
+            return isAllowedOrigin(origin);
+        } catch (Exception e) {
+            return false;
         }
     }
 
-    public void setCookies(HttpServletResponse response, String rawRefreshToken, String csrfToken, long maxAgeSeconds) {
+    private boolean isLocalOrTestRequest(HttpServletRequest request) {
+        String remoteAddr = request.getRemoteAddr();
+        return remoteAddr == null || "127.0.0.1".equals(remoteAddr) || "0:0:0:0:0:0:0:1".equals(remoteAddr) || "localhost".equalsIgnoreCase(request.getServerName());
+    }
+
+    public void setCookies(HttpServletResponse response, HttpServletRequest request, String rawRefreshToken, String csrfToken, long maxAgeSeconds) {
+        boolean secure = isCookieSecure(request);
+        String sameSite = getCookieSameSite(request);
+
         ResponseCookie refreshCookie = ResponseCookie.from(REFRESH_COOKIE, rawRefreshToken)
                 .httpOnly(true)
-                .secure(cookieSecure)
-                .sameSite(cookieSameSite)
-                .path("/api/auth")
+                .secure(secure)
+                .sameSite(sameSite)
+                .path("/")
                 .maxAge(maxAgeSeconds)
                 .build();
 
         ResponseCookie csrfCookie = ResponseCookie.from(CSRF_COOKIE, csrfToken)
                 .httpOnly(false)
-                .secure(cookieSecure)
-                .sameSite(cookieSameSite)
+                .secure(secure)
+                .sameSite(sameSite)
                 .path("/")
                 .maxAge(maxAgeSeconds)
+                .build();
+
+        response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
+        response.addHeader(HttpHeaders.SET_COOKIE, csrfCookie.toString());
+        response.setHeader(CSRF_HEADER, csrfToken);
+        response.setHeader("X-CSRF-TOKEN", csrfToken);
+    }
+
+    public void setCookies(HttpServletResponse response, String rawRefreshToken, String csrfToken, long maxAgeSeconds) {
+        setCookies(response, null, rawRefreshToken, csrfToken, maxAgeSeconds);
+    }
+
+    public void clearCookies(HttpServletResponse response, HttpServletRequest request) {
+        boolean secure = isCookieSecure(request);
+        String sameSite = getCookieSameSite(request);
+
+        ResponseCookie refreshCookie = ResponseCookie.from(REFRESH_COOKIE, "")
+                .httpOnly(true)
+                .secure(secure)
+                .sameSite(sameSite)
+                .path("/")
+                .maxAge(0)
+                .build();
+
+        ResponseCookie csrfCookie = ResponseCookie.from(CSRF_COOKIE, "")
+                .httpOnly(false)
+                .secure(secure)
+                .sameSite(sameSite)
+                .path("/")
+                .maxAge(0)
                 .build();
 
         response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
@@ -318,24 +456,7 @@ public class UserSessionService {
     }
 
     public void clearCookies(HttpServletResponse response) {
-        ResponseCookie refreshCookie = ResponseCookie.from(REFRESH_COOKIE, "")
-                .httpOnly(true)
-                .secure(cookieSecure)
-                .sameSite(cookieSameSite)
-                .path("/api/auth")
-                .maxAge(0)
-                .build();
-
-        ResponseCookie csrfCookie = ResponseCookie.from(CSRF_COOKIE, "")
-                .httpOnly(false)
-                .secure(cookieSecure)
-                .sameSite(cookieSameSite)
-                .path("/")
-                .maxAge(0)
-                .build();
-
-        response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
-        response.addHeader(HttpHeaders.SET_COOKIE, csrfCookie.toString());
+        clearCookies(response, null);
     }
 
     private String randomUrlSafeString(int byteLength) {
@@ -345,9 +466,10 @@ public class UserSessionService {
     }
 
     public static String extractClientIp(HttpServletRequest request) {
+        if (request == null) return "Unknown";
         String xfHeader = request.getHeader("X-Forwarded-For");
         if (xfHeader == null || xfHeader.isBlank()) {
-            return request.getRemoteAddr();
+            return request.getRemoteAddr() != null ? request.getRemoteAddr() : "Unknown";
         }
         return xfHeader.split(",")[0].trim();
     }
@@ -371,4 +493,3 @@ public class UserSessionService {
         return "Web Browser";
     }
 }
-

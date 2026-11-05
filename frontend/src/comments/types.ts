@@ -5,6 +5,15 @@ export interface CodeThreadMetadata {
   [key: string]: string | number | boolean | undefined;
 }
 
+export interface ProjectActivityNotificationData {
+  projectId: string;
+  projectName: string;
+  role?: string;
+  actorUserId?: string;
+  actorName?: string;
+  message?: string;
+}
+
 export interface CommentBodyContent {
   type: "paragraph";
   children: Array<{ text?: string; type?: string; id?: string }>;

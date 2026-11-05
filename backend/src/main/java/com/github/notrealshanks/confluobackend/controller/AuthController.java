@@ -86,8 +86,9 @@ public class AuthController {
             @CookieValue(name = UserSessionService.REFRESH_COOKIE, required = false) String refreshTokenCookie,
             @CookieValue(name = UserSessionService.CSRF_COOKIE, required = false) String csrfCookie,
             @RequestHeader(name = UserSessionService.CSRF_HEADER, required = false) String csrfHeader,
+            HttpServletRequest httpRequest,
             HttpServletResponse httpResponse) {
-        userSessionService.logout(refreshTokenCookie, csrfCookie, csrfHeader, httpResponse);
+        userSessionService.logout(refreshTokenCookie, csrfCookie, csrfHeader, httpRequest, httpResponse);
         return ResponseEntity.noContent().build();
     }
 

@@ -1,5 +1,6 @@
 package com.github.notrealshanks.confluobackend.config;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -20,11 +21,11 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import com.github.notrealshanks.confluobackend.repository.ShareLinkRepository;
 import com.github.notrealshanks.confluobackend.security.GitHubUserService;
 import com.github.notrealshanks.confluobackend.security.JwtAuthFilter;
 import com.github.notrealshanks.confluobackend.security.JwtService;
 import com.github.notrealshanks.confluobackend.security.OAuth2LoginHandler;
-import com.github.notrealshanks.confluobackend.repository.ShareLinkRepository;
 
 @Configuration
 @EnableWebSecurity
@@ -66,11 +67,31 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource(
             @Value("${app.frontend-url:http://localhost:5173}") String frontendUrl) {
         CorsConfiguration config = new CorsConfiguration();
-        List<String> origins = List.of(frontendUrl.split("\\s*,\\s*"));
+        List<String> origins = new ArrayList<>();
+        for (String url : frontendUrl.split("\\s*,\\s*")) {
+            if (!url.isBlank()) {
+                origins.add(url.trim().replaceAll("^\"|\"$", "").replaceAll("/+$", ""));
+            }
+        }
+        if (!origins.contains("http://localhost:5173")) origins.add("http://localhost:5173");
+        if (!origins.contains("http://127.0.0.1:5173")) origins.add("http://127.0.0.1:5173");
+
         config.setAllowedOriginPatterns(origins.contains("*") ? List.of("*") : origins);
         config.setAllowCredentials(true);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-XSRF-TOKEN", "X-Requested-With"));
+        config.setAllowedHeaders(List.of(
+                "Authorization",
+                "Content-Type",
+                "X-XSRF-TOKEN",
+                "X-CSRF-TOKEN",
+                "X-Requested-With",
+                "Accept"
+        ));
+        config.setExposedHeaders(List.of(
+                "Authorization",
+                "X-XSRF-TOKEN",
+                "X-CSRF-TOKEN"
+        ));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);

@@ -52,19 +52,18 @@ public class LiveblocksAuthService {
                 .build();
     }
 
-    private static String displayName(User user) {
+    public static String displayName(User user) {
+        if (user == null) return "Collaborator";
         String name = user.getName();
 
         boolean unusable = name == null
                 || name.isBlank()
                 || name.trim().equalsIgnoreCase(user.getEmail());
 
-        return unusable ? "Anonymous" : name.trim();
+        return unusable ? "Collaborator" : name.trim();
     }
 
     public LiveblocksTokenResponse authorize(String userId, String room) {
-        // The room must be a project the caller belongs to, so wildcard room names can't get through
-        Role role = projectService.requireAccess(userId, room).role();
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User no longer exists"));
 
@@ -77,10 +76,19 @@ public class LiveblocksAuthService {
             userInfo.put("avatar", avatar);
         }
 
-        return requestToken(Map.of(
-                "userId", userId,
-                "userInfo", userInfo,
-                "permissions", Map.of(room, permissionsFor(role))));
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("userId", userId);
+        body.put("userInfo", userInfo);
+
+        if (room != null && !room.isBlank()) {
+            // The room must be a project the caller belongs to
+            Role role = projectService.requireAccess(userId, room).role();
+            body.put("permissions", Map.of(room, permissionsFor(role)));
+        } else {
+            body.put("permissions", Collections.emptyMap());
+        }
+
+        return requestToken(body);
     }
 
     public void revokeRoomAccess(String room, String userId) {
@@ -98,6 +106,101 @@ public class LiveblocksAuthService {
             log.warn("Failed to revoke Liveblocks room access for user {} in room {}: {}",
                     userId, room, e.getMessage());
         }
+    }
+
+    public void triggerInboxNotification(
+            String targetUserId,
+            String kind,
+            String subjectId,
+            Map<String, Object> activityData) {
+        try {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("userId", targetUserId);
+            payload.put("kind", kind);
+            if (subjectId != null && !subjectId.isBlank()) {
+                payload.put("subjectId", subjectId);
+            }
+            payload.put("activityData", activityData);
+
+            restClient.post()
+                    .uri("/v2/inbox-notifications/trigger")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(payload)
+                    .retrieve()
+                    .toBodilessEntity();
+            log.info("Triggered Liveblocks inbox notification [{}] for user {} (subjectId: {})", kind, targetUserId, subjectId);
+        } catch (Exception e) {
+            log.warn("Failed to trigger Liveblocks inbox notification [{}] for user {}: {}", kind, targetUserId, e.getMessage());
+        }
+    }
+
+    public void notifyProjectInvited(String targetUserId, String inviterUserId, String projectId, String projectName, Role role) {
+        String actorName = userRepository.findById(inviterUserId)
+                .map(LiveblocksAuthService::displayName)
+                .orElse("A project owner");
+
+        String roleName = role != null ? role.name() : "EDITOR";
+        Map<String, Object> activityData = Map.of(
+                "projectId", projectId,
+                "projectName", projectName != null ? projectName : "Untitled Project",
+                "role", roleName,
+                "actorUserId", inviterUserId,
+                "actorName", actorName,
+                "message", actorName + " invited you to collaborate on " + projectName + " as " + roleName
+        );
+
+        triggerInboxNotification(targetUserId, "$project-invited", projectId, activityData);
+    }
+
+    public void notifyProjectRoleChanged(String targetUserId, String actorUserId, String projectId, String projectName, Role newRole) {
+        String actorName = userRepository.findById(actorUserId)
+                .map(LiveblocksAuthService::displayName)
+                .orElse("Project owner");
+
+        String roleName = newRole != null ? newRole.name() : "EDITOR";
+        Map<String, Object> activityData = Map.of(
+                "projectId", projectId,
+                "projectName", projectName != null ? projectName : "Untitled Project",
+                "role", roleName,
+                "actorUserId", actorUserId,
+                "actorName", actorName,
+                "message", actorName + " updated your role in " + projectName + " to " + roleName
+        );
+
+        triggerInboxNotification(targetUserId, "$project-role-changed", projectId, activityData);
+    }
+
+    public void notifyOwnershipTransferred(String newOwnerUserId, String previousOwnerUserId, String projectId, String projectName) {
+        String actorName = userRepository.findById(previousOwnerUserId)
+                .map(LiveblocksAuthService::displayName)
+                .orElse("Previous owner");
+
+        Map<String, Object> activityData = Map.of(
+                "projectId", projectId,
+                "projectName", projectName != null ? projectName : "Untitled Project",
+                "role", "OWNER",
+                "actorUserId", previousOwnerUserId,
+                "actorName", actorName,
+                "message", actorName + " transferred ownership of " + projectName + " to you"
+        );
+
+        triggerInboxNotification(newOwnerUserId, "$project-ownership-transferred", projectId, activityData);
+    }
+
+    public void notifyMemberRemoved(String removedUserId, String actorUserId, String projectId, String projectName) {
+        String actorName = userRepository.findById(actorUserId)
+                .map(LiveblocksAuthService::displayName)
+                .orElse("Project owner");
+
+        Map<String, Object> activityData = Map.of(
+                "projectId", projectId,
+                "projectName", projectName != null ? projectName : "Untitled Project",
+                "actorUserId", actorUserId,
+                "actorName", actorName,
+                "message", actorName + " removed you from " + projectName
+        );
+
+        triggerInboxNotification(removedUserId, "$project-member-removed", projectId, activityData);
     }
 
     public LiveblocksTokenResponse authorizeGuest(GuestPrincipal guest, String room) {
@@ -140,7 +243,6 @@ public class LiveblocksAuthService {
         return new LiveblocksTokenResponse(value);
     }
 
-    // Viewer cursor visibility under "*:read" is unverified; revisit after a browser test
     private static List<String> permissionsFor(Role role) {
         return role.canEdit() ? List.of("*:write") : List.of("*:read");
     }

@@ -9,6 +9,16 @@ import * as hooks from "../projects/hooks";
 import * as projectsApi from "../api/projects";
 import type { Project, User } from "../api/types";
 
+vi.mock("@liveblocks/react/suspense", () => ({
+  LiveblocksProvider: ({ children }: { children: React.ReactNode }) => children,
+  useInboxNotifications: () => ({ inboxNotifications: [] }),
+  useThreads: () => ({ threads: [] }),
+  useMarkInboxNotificationAsRead: () => vi.fn(),
+  useMarkAllInboxNotificationsAsRead: () => vi.fn(),
+  useDeleteInboxNotification: () => vi.fn(),
+  useIsInsideRoom: () => false,
+}));
+
 const mockUser: User = {
   id: "user-42",
   email: "dev@confluo.io",

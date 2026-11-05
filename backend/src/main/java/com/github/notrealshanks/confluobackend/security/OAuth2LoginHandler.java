@@ -38,7 +38,7 @@ public class OAuth2LoginHandler implements AuthenticationSuccessHandler, Authent
         this.oAuthUserService = oAuthUserService;
         this.jwtService = jwtService;
         this.userSessionService = userSessionService;
-        this.frontendUrl = frontendUrl;
+        this.frontendUrl = frontendUrl == null ? "http://localhost:5173" : frontendUrl.trim().replaceAll("^\"|\"$", "").replaceAll("/+$", "");
     }
 
     @Override

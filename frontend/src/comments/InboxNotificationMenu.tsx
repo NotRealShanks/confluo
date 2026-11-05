@@ -1,24 +1,44 @@
 import { useState, useRef, useEffect } from "react";
-import { Bell, CheckCheck, MessageSquare, Trash2, X } from "lucide-react";
+import {
+  Bell,
+  CheckCheck,
+  MessageSquare,
+  Trash2,
+  X,
+  UserPlus,
+  Shield,
+  FolderCode,
+  ExternalLink,
+} from "lucide-react";
+import { useNavigate } from "react-router";
 import {
   useDeleteInboxNotification,
   useInboxNotifications,
+  useIsInsideRoom,
   useMarkAllInboxNotificationsAsRead,
   useMarkInboxNotificationAsRead,
   useThreads,
 } from "@liveblocks/react/suspense";
-import { extractCommentText, formatCommentTime, type CodeThreadMetadata } from "./types";
+import {
+  extractCommentText,
+  formatCommentTime,
+  type CodeThreadMetadata,
+  type ProjectActivityNotificationData,
+} from "./types";
 import { colorFor } from "../lib/color";
 
 export interface InboxNotificationMenuProps {
   onNavigateToComment?: (fileId: string, lineNumber: number) => void;
 }
 
-export function InboxNotificationMenu({ onNavigateToComment }: InboxNotificationMenuProps) {
+function InnerInboxNotificationMenu({
+  onNavigateToComment,
+  threads,
+}: InboxNotificationMenuProps & { threads: any[] }) {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
   const { inboxNotifications } = useInboxNotifications();
-  const { threads } = useThreads();
   const markAsRead = useMarkInboxNotificationAsRead();
   const markAllAsRead = useMarkAllInboxNotificationsAsRead();
   const deleteNotification = useDeleteInboxNotification();
@@ -54,8 +74,22 @@ export function InboxNotificationMenu({ onNavigateToComment }: InboxNotification
       markAsRead(notification.id);
     }
 
+    // Custom project notifications
+    if (typeof notification.kind === "string" && notification.kind.startsWith("$project-")) {
+      const activity = (notification as any).activities?.[0];
+      const data = (activity?.data || (notification as any).activityData) as
+        | ProjectActivityNotificationData
+        | undefined;
+      if (data?.projectId) {
+        setIsOpen(false);
+        navigate(`/project/${encodeURIComponent(data.projectId)}`);
+        return;
+      }
+    }
+
+    // Comment thread notifications
     if (notification.threadId && onNavigateToComment) {
-      const thread = (threads as any[]).find((t) => t.id === notification.threadId);
+      const thread = threads.find((t) => t.id === notification.threadId);
       const meta = thread?.metadata as CodeThreadMetadata | undefined;
       if (meta?.fileId && typeof meta.lineNumber === "number") {
         onNavigateToComment(meta.fileId, meta.lineNumber);
@@ -135,7 +169,100 @@ export function InboxNotificationMenu({ onNavigateToComment }: InboxNotification
             ) : (
               inboxNotifications.map((notification) => {
                 const isUnread = !notification.readAt;
-                const thread = (threads as any[]).find((t) => t.id === (notification as any).threadId);
+                const isCustomProject =
+                  typeof notification.kind === "string" &&
+                  notification.kind.startsWith("$project-");
+
+                if (isCustomProject) {
+                  const activity = (notification as any).activities?.[0];
+                  const data = (activity?.data || (notification as any).activityData) as
+                    | ProjectActivityNotificationData
+                    | undefined;
+
+                  const role = data?.role;
+                  const actor = data?.actorName || "A collaborator";
+                  const projectName = data?.projectName || "Workspace";
+                  const message =
+                    data?.message ||
+                    `${actor} shared workspace ${projectName} with you`;
+
+                  let IconComponent = FolderCode;
+                  if (notification.kind === "$project-invited") IconComponent = UserPlus;
+                  if (notification.kind === "$project-ownership-transferred")
+                    IconComponent = Shield;
+
+                  return (
+                    <div
+                      key={notification.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => handleNotificationClick(notification)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          handleNotificationClick(notification);
+                        }
+                      }}
+                      className={`p-3 text-xs cursor-pointer transition-colors flex items-start gap-2.5 ${
+                        isUnread
+                          ? "bg-[#252830] hover:bg-[#2b303c] border-l-2 border-l-blue-500"
+                          : "bg-[#1e1e1e] hover:bg-[#252526]"
+                      }`}
+                    >
+                      <div className="w-6 h-6 rounded-full shrink-0 flex items-center justify-center text-white bg-blue-600 mt-0.5">
+                        <IconComponent size={12} />
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-1 mb-0.5">
+                          <span className="font-semibold text-white truncate">
+                            {projectName}
+                          </span>
+                          <span className="text-[10px] text-gray-500 shrink-0">
+                            {formatCommentTime(notification.notifiedAt)}
+                          </span>
+                        </div>
+
+                        <p className="text-[#a0a0a0] line-clamp-2 text-[11.5px] leading-snug mb-1.5">
+                          {message}
+                        </p>
+
+                        <div className="flex items-center gap-2">
+                          {role && (
+                            <span className="rounded bg-zinc-800 border border-zinc-700 px-1.5 py-0.2 text-[9px] uppercase font-mono text-zinc-300">
+                              {role}
+                            </span>
+                          )}
+                          <span className="inline-flex items-center gap-1 text-[10px] text-blue-400 hover:text-blue-300 font-medium">
+                            <span>Open Project</span>
+                            <ExternalLink size={9} />
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1 shrink-0 self-center">
+                        {isUnread && (
+                          <span className="w-2 h-2 rounded-full bg-blue-500" title="Unread" />
+                        )}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteNotification(notification.id);
+                          }}
+                          className="p-1 rounded text-gray-500 hover:text-red-400 hover:bg-white/10 transition-colors"
+                          title="Delete notification"
+                          aria-label="Delete notification"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                }
+
+                // Standard Liveblocks Comment / Thread Notification
+                const thread = threads.find((t) => t.id === (notification as any).threadId);
                 const meta = thread?.metadata as CodeThreadMetadata | undefined;
                 const latestComment = thread?.comments?.[thread.comments.length - 1];
                 const snippet = latestComment
@@ -219,4 +346,27 @@ export function InboxNotificationMenu({ onNavigateToComment }: InboxNotification
       )}
     </div>
   );
+}
+
+function RoomThreadsConsumer({
+  children,
+}: {
+  children: (threads: any[]) => React.ReactNode;
+}) {
+  const { threads } = useThreads();
+  return <>{children(threads)}</>;
+}
+
+export function InboxNotificationMenu(props: InboxNotificationMenuProps) {
+  const isInsideRoom = useIsInsideRoom();
+
+  if (isInsideRoom) {
+    return (
+      <RoomThreadsConsumer>
+        {(threads) => <InnerInboxNotificationMenu {...props} threads={threads} />}
+      </RoomThreadsConsumer>
+    );
+  }
+
+  return <InnerInboxNotificationMenu {...props} threads={[]} />;
 }

@@ -1,6 +1,10 @@
-import type { ReactNode } from "react";
+import { Suspense, useMemo, type ReactNode } from "react";
 import { Link } from "react-router";
 import AccountMenu from "./AccountMenu";
+import { InboxNotificationMenu } from "../comments";
+import { LiveblocksProvider } from "@liveblocks/react/suspense";
+import { makeUserAuthEndpoint } from "../liveblocksAuth";
+import { useAuth } from "../auth/context";
 import { Terminal } from "lucide-react";
 
 export default function AppShell({
@@ -10,6 +14,8 @@ export default function AppShell({
   children: ReactNode;
   wide?: boolean;
 }) {
+  const { user } = useAuth();
+  const userAuthEndpoint = useMemo(() => makeUserAuthEndpoint(), []);
   const width = wide ? "max-w-7xl" : "max-w-5xl";
 
   return (
@@ -38,11 +44,18 @@ export default function AppShell({
             </nav>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <div className="hidden md:flex items-center gap-2 rounded-full border border-[#27272a] bg-[#09090b] px-2.5 py-0.5 font-mono text-[11px] text-[#a1a1aa]">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
               <span>Liveblocks • E2B Online</span>
             </div>
+            {user && (
+              <LiveblocksProvider authEndpoint={userAuthEndpoint}>
+                <Suspense fallback={null}>
+                  <InboxNotificationMenu />
+                </Suspense>
+              </LiveblocksProvider>
+            )}
             <AccountMenu />
           </div>
         </div>

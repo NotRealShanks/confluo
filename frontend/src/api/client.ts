@@ -34,7 +34,14 @@ export class ApiError extends Error {
   }
 }
 
+let inMemoryCsrfToken: string | null = null;
+
+export function setCsrfToken(token: string | null): void {
+  inMemoryCsrfToken = token;
+}
+
 export function getCsrfToken(): string | null {
+  if (inMemoryCsrfToken) return inMemoryCsrfToken;
   if (typeof document === "undefined") return null;
   const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/);
   return match ? decodeURIComponent(match[1]) : null;
@@ -50,9 +57,13 @@ export async function silentRefresh(): Promise<string | null> {
   refreshPromise = (async () => {
     try {
       const csrf = getCsrfToken();
-      const headers = new Headers({ "Content-Type": "application/json" });
+      const headers = new Headers({
+        "Content-Type": "application/json",
+        "X-Requested-With": "XMLHttpRequest",
+      });
       if (csrf) {
         headers.set("X-XSRF-TOKEN", csrf);
+        headers.set("X-CSRF-TOKEN", csrf);
       }
 
       const response = await fetch(`${API_URL}/api/auth/refresh`, {
@@ -62,14 +73,25 @@ export async function silentRefresh(): Promise<string | null> {
       });
 
       if (!response.ok) {
+        if (import.meta.env.DEV) {
+          console.warn(`[Auth] silentRefresh failed with status ${response.status} (${response.statusText})`);
+        }
         clearToken();
         return null;
+      }
+
+      const returnedCsrf = response.headers?.get?.("X-CSRF-TOKEN") || response.headers?.get?.("X-XSRF-TOKEN");
+      if (returnedCsrf) {
+        setCsrfToken(returnedCsrf);
       }
 
       const body = (await response.json()) as { token: string };
       setToken(body.token);
       return body.token;
-    } catch {
+    } catch (err) {
+      if (import.meta.env.DEV) {
+        console.warn("[Auth] silentRefresh network/CORS error:", err);
+      }
       clearToken();
       return null;
     } finally {
@@ -95,6 +117,9 @@ export async function apiFetch<T>(
   if (csrf && !headers.has("X-XSRF-TOKEN")) {
     headers.set("X-XSRF-TOKEN", csrf);
   }
+  if (!headers.has("X-Requested-With")) {
+    headers.set("X-Requested-With", "XMLHttpRequest");
+  }
 
   // Let the browser add the multipart boundary for FormData requests.
   if (init.body !== undefined && !(init.body instanceof FormData) && !headers.has("Content-Type")) {
@@ -107,6 +132,12 @@ export async function apiFetch<T>(
     headers,
   });
 
+  // Save CSRF token if returned in headers
+  const returnedCsrf = response.headers?.get?.("X-CSRF-TOKEN") || response.headers?.get?.("X-XSRF-TOKEN");
+  if (returnedCsrf) {
+    setCsrfToken(returnedCsrf);
+  }
+
   // Attempt silent refresh on 401 if not already hitting auth endpoints
   if (response.status === 401 && !path.startsWith("/api/auth/")) {
     const refreshedToken = await silentRefresh();
@@ -117,6 +148,11 @@ export async function apiFetch<T>(
         credentials: "include",
         headers,
       });
+
+      const retryCsrf = response.headers.get("X-CSRF-TOKEN") || response.headers.get("X-XSRF-TOKEN");
+      if (retryCsrf) {
+        setCsrfToken(retryCsrf);
+      }
     }
   }
 
