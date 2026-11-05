@@ -1,0 +1,44 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: confluo-backend
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - MONGODB_USERNAME=${MONGODB_USERNAME}
+      - MONGODB_PASSWORD=${MONGODB_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET}
+      - LIVEBLOCKS_SECRET_KEY=${LIVEBLOCKS_SECRET_KEY}
+      - APP_FRONTEND_URL=${APP_FRONTEND_URL}
+      - APP_EXECUTION_SERVICE_URL=http://runner:4000
+      - APP_EXECUTION_SERVICE_TOKEN=${APP_EXECUTION_SERVICE_TOKEN}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
+      - GIT_STORAGE_BASE_PATH=/app/data/git-storage
+    volumes:
+      - git-data:/app/data/git-storage
+    depends_on:
+      - runner
+
+  runner:
+    build:
+      context: ./runner
+      dockerfile: Dockerfile
+    container_name: confluo-runner
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - E2B_API_KEY=${E2B_API_KEY}
+      - RUNNER_AUTH_TOKEN=${APP_EXECUTION_SERVICE_TOKEN}
+
+volumes:
+  git-data:
+    driver: local
